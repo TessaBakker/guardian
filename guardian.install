@@ -1,0 +1,75 @@
+<?php
+
+/**
+ * @file Install and update functions.
+ */
+
+/**
+ * Implements hook_requirements.
+ *
+ * Validate USER1 mail and init address.
+ */
+function guardian_requirements($phase) {
+  global $conf;
+  
+  $t = get_t();
+  $requirements = array();
+
+  if (!empty($conf['guardian_mail'])) {
+    $requirements['guardian'] = array(
+      'title' => $t('Guardian'),
+      'description' => $t('Missing $conf[\'guardian_mail\'] value in settings.php.'),
+      'severity' => REQUIREMENT_ERROR,
+    );
+  }
+  elseif (!valid_email_address($conf['guardian_mail'])) {
+    $requirements['guardian'] = array(
+      'title' => $t('Guardian'),
+      'description' => $t('$conf[\'guardian_mail\'] needs a be a valid mail address'),
+      'severity' => REQUIREMENT_ERROR,
+    );
+  }
+
+  return $requirements;
+}
+
+/**
+ * Implements hook_enable().
+ *
+ * Clear USER1 password and set USER1 init with mail.
+ */
+function guardian_enable() {
+  // Remove all active USER1 sessions.
+  drupal_session_destroy_uid(1);
+
+  db_query("UPDATE {users} SET pass = '', init = mail WHERE uid = 1");
+}
+
+/**
+ * Implements hook_disable().
+ *
+ * Send warning to all developers.
+ */
+function guardian_disable() {
+  global $databases, $conf;
+  $database_names = array();
+
+  // Get databases if site name is compromised.
+  foreach ($databases as $target) {
+    foreach ($target as $replication) {
+      $database_names[] = $replication['database'];
+    }
+  }
+
+  $body = array(t('Guardian has been disabled for the following databases:'));
+  foreach ($database_names as $database_name) {
+    $body[] = '* ' . $database_name;
+  }
+
+  $params = array(
+    'body' => $body,
+    'subject' => t('Guardian disabled on @site', array('@site' => variable_get('site_name'))),
+  );
+
+  drupal_mail('guardian', 'disable', $conf['guardian_mail'], LANGUAGE_NONE, $params, $conf['guardian_mail']);
+}

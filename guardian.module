@@ -1,0 +1,71 @@
+<?php
+
+/**
+ * Implements hook_cron().
+ */
+function guardian_cron() {
+  global $conf;
+  $account = user_load(1);
+  $changed = FALSE;
+
+  if (!_guardian_valid_user($account)) {
+    unset($account->password);
+    watchdog('guardian', 'Possible hack attempt registrated with USER1: %user', array(
+      '%user' => var_export($account, TRUE),
+    ), WATCHDOG_ALERT);
+
+    // Reset the account.
+    $account->init = $account->mail = $conf['guardian_mail'];
+    $account->pass = '';
+    $changed = user_save($account);
+  }
+
+  // Destroy the session after user save or 2 hours of inactivity.
+  if ($changed || $account->access <= REQUEST_TIME - 3600 * 2) {
+    _guardian_destroy_user1_sessions();
+  }
+}
+
+/**
+ * Helper to check for valid Guardian user data.
+ */
+function _guardian_valid_user($account) {
+  global $conf;
+
+  return !empty($conf['guardian_mail']) && empty($account->pass) && $account->init == $conf['guardian_mail'] && $account->mail == $conf['guardian_mail'];
+}
+
+/**
+ * Helper function to destroy all USER1 sessions.
+ */
+function _guardian_destroy_user1_sessions() {
+  db_delete('sessions')
+    ->condition('uid', 1)
+    ->execute();
+}
+
+/**
+ *  Implements hook_form_FORM_ID_alter().
+ *
+ *  Return access denied on USER1 edit, except for USER1.
+ */
+function guardian_form_user_profile_form_alter(&$form, &$form_state, $form_id) {
+  global $user;
+  $account = $form['#user'];
+
+  if ($user->uid != 1 && $account->uid == 1) {
+    drupal_access_denied();
+  }
+}
+
+/**
+ * Implements hook_mail().
+ */
+function guardian_mail($key, &$message, $params) {
+  switch ($key) {
+    case 'disable':
+      $message['subject'] = $params['subject'];
+      $message['body'] = $params['body'];
+      break;
+  }
+}

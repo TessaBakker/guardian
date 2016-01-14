@@ -1,0 +1,4 @@
+name = Guardian
+description = Protects USER1 password and e-mail address.
+core = 7.x
+package = Security
