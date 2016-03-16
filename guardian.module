@@ -1,6 +1,10 @@
 <?php
 
 /**
+ * @file Hooks and helpers for Guardian.
+ */
+
+/**
  * Implements hook_cron().
  */
 function guardian_cron() {
@@ -8,20 +12,20 @@ function guardian_cron() {
   $account = user_load(1);
   $changed = FALSE;
 
-  if (!_guardian_valid_user($account)) {
+  if (!_guardian_valid_account($account)) {
     unset($account->password);
     watchdog('guardian', 'Possible hack attempt registrated with USER1: %user', array(
       '%user' => var_export($account, TRUE),
     ), WATCHDOG_ALERT);
 
     // Reset the account.
-    $account->init = $account->mail = $conf['guardian_mail'];
-    $account->pass = '';
-    $changed = user_save($account);
+    user_save($account);
   }
 
-  // Destroy the session after user save or 2 hours of inactivity.
-  if ($changed || $account->access <= REQUEST_TIME - 3600 * 2) {
+  $hours = isset($conf['guardian_hours']) ? (int) $conf['guardian_hours'] : 2;
+
+  // Destroy the session after user change or inactivity.
+  if ($changed || $account->access <= REQUEST_TIME - 3600 * $hours) {
     _guardian_destroy_user1_sessions();
   }
 }
@@ -29,10 +33,13 @@ function guardian_cron() {
 /**
  * Helper to check for valid Guardian user data.
  */
-function _guardian_valid_user($account) {
+function _guardian_valid_account($account) {
   global $conf;
 
-  return !empty($conf['guardian_mail']) && empty($account->pass) && $account->init == $conf['guardian_mail'] && $account->mail == $conf['guardian_mail'];
+  $has_guardian_mail = !empty($conf['guardian_mail']) && $account->init == $conf['guardian_mail'] && $account->mail == $conf['guardian_mail'];
+  $has_no_pass = empty($account->pass);
+
+  return  $has_guardian_mail && $has_no_pass;
 }
 
 /**
@@ -45,16 +52,37 @@ function _guardian_destroy_user1_sessions() {
 }
 
 /**
- *  Implements hook_form_FORM_ID_alter().
- *
- *  Return access denied on USER1 edit, except for USER1.
+ * Implements hook_user_view().
+ */
+function guardian_user_view($account, $view_mode, $langcode) {
+  global $user;
+
+  if ((int) $account->uid === 1) {
+    if ((int) $user->uid !== 1) {
+      drupal_access_denied();
+      drupal_exit();
+    }
+  }
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
  */
 function guardian_form_user_profile_form_alter(&$form, &$form_state, $form_id) {
   global $user;
   $account = $form['#user'];
 
-  if ($user->uid != 1 && $account->uid == 1) {
-    drupal_access_denied();
+  if ((int) $account->uid === 1) {
+    if ((int) $user->uid !== 1) {
+      drupal_access_denied();
+      drupal_exit();
+    }
+
+    foreach (element_get_visible_children($form['account']) as $field) {
+      $form['account'][$field]['#access'] = isset($form['account'][$field]['#default_value']);
+      $form['account'][$field]['#disabled'] = TRUE;
+      $form['account'][$field]['#description'] = t('Disabled by Guardian.');
+    }
   }
 }
 
@@ -63,9 +91,25 @@ function guardian_form_user_profile_form_alter(&$form, &$form_state, $form_id) {
  */
 function guardian_mail($key, &$message, $params) {
   switch ($key) {
+    case 'enable':
     case 'disable':
       $message['subject'] = $params['subject'];
       $message['body'] = $params['body'];
       break;
+  }
+}
+
+/**
+ * Implements hook_user_presave().
+ *
+ * Save USER1 profile with default values.
+ */
+function guardian_user_presave(&$edit, $account, $category) {
+  global $conf;
+
+  if ((int) $account->uid === 1) {
+    $edit['pass'] = '';
+    $edit['mail'] = $conf['guardian_mail'];
+    $edit['status'] = 1;
   }
 }

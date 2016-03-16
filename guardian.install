@@ -11,11 +11,11 @@
  */
 function guardian_requirements($phase) {
   global $conf;
-  
+
   $t = get_t();
   $requirements = array();
 
-  if (!empty($conf['guardian_mail'])) {
+  if (empty($conf['guardian_mail'])) {
     $requirements['guardian'] = array(
       'title' => $t('Guardian'),
       'description' => $t('Missing $conf[\'guardian_mail\'] value in settings.php.'),
@@ -39,10 +39,14 @@ function guardian_requirements($phase) {
  * Clear USER1 password and set USER1 init with mail.
  */
 function guardian_enable() {
+  global $conf;
+
   // Remove all active USER1 sessions.
   drupal_session_destroy_uid(1);
 
-  db_query("UPDATE {users} SET pass = '', init = mail WHERE uid = 1");
+  db_query("UPDATE {users} SET `pass` = '', `init` = :mail, `mail` = :mail WHERE `uid` = 1", array(':mail' => $conf['guardian_mail']));
+
+  _guardian_mail_status_update(t('enabled'), 'enable');
 }
 
 /**
@@ -51,25 +55,43 @@ function guardian_enable() {
  * Send warning to all developers.
  */
 function guardian_disable() {
-  global $databases, $conf;
-  $database_names = array();
+  require_once DRUPAL_ROOT . '/' . variable_get('password_inc', 'includes/password.inc');
 
-  // Get databases if site name is compromised.
-  foreach ($databases as $target) {
-    foreach ($target as $replication) {
-      $database_names[] = $replication['database'];
-    }
-  }
+  $password = user_password();
 
-  $body = array(t('Guardian has been disabled for the following databases:'));
-  foreach ($database_names as $database_name) {
-    $body[] = '* ' . $database_name;
-  }
+  db_query("UPDATE {users} SET `pass` = :password WHERE `uid` = 1", array(':password' => user_hash_password($password)));
+
+  drupal_set_message(t('Your USER 1 password has been reset to: %password', array('%password' => $password)));
+
+  _guardian_mail_status_update(t('disabled'), 'disable');
+}
+
+/**
+ * @param $status_text
+ * @param $status_mail
+ */
+function _guardian_mail_status_update($status_text, $status_mail) {
+  global $conf;
+
+  $site = variable_get('site_name');
+  $body = array(
+    t('Guardian has been @status for @site', array(
+      '@site' => $site,
+      '@status' => $status_text
+    ))
+  );
+  $body[] = "SERVER variables:";
+  $body[] = var_export($_SERVER, TRUE);
 
   $params = array(
     'body' => $body,
-    'subject' => t('Guardian disabled on @site', array('@site' => variable_get('site_name'))),
+    'subject' => t('Guardian has been @status for @site', array(
+      '@site' => $site,
+      '@status' => $status_text
+    )),
   );
 
-  drupal_mail('guardian', 'disable', $conf['guardian_mail'], LANGUAGE_NONE, $params, $conf['guardian_mail']);
+  drupal_mail('guardian', $status_mail, $conf['guardian_mail'], LANGUAGE_NONE, $params, $conf['guardian_mail']);
+
+  watchdog('guardian', 'Guardian has been @status.', array('@status' => $status_text), WATCHDOG_INFO);
 }
