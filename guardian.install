@@ -1,11 +1,12 @@
 <?php
 
 /**
- * @file Install and update functions.
+ * @file
+ * Install and update functions.
  */
 
 /**
- * Implements hook_requirements.
+ * Implements hook_requirements().
  */
 function guardian_requirements($phase) {
   global $conf;
@@ -86,7 +87,7 @@ function _guardian_mail_status_update($status_text, $status_mail) {
 
   $subject = t('Guardian has been @status for @site', array(
     '@site' => variable_get('site_name'),
-    '@status' => $status_text
+    '@status' => $status_text,
   ));
   $body = array($subject);
 

@@ -1,7 +1,8 @@
 <?php
 
 /**
- * @file Hooks and helpers for Guardian.
+ * @file
+ * Hooks and helpers for Guardian.
  */
 
 /**
@@ -141,7 +142,8 @@ function guardian_mail_alter(&$message) {
 /**
  * Helper to add metadata within the body of an e-mail.
  *
- * @param array $body Message of mail.
+ * @param array $body
+ *  Message of mail.
  */
 function _guardian_add_metadata_to_body(&$body) {
   $body[] = t('Client IP: @ip', array('@ip' => ip_address()));
