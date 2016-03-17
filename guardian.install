@@ -37,7 +37,7 @@ function guardian_requirements($phase) {
 function guardian_enable() {
   global $conf;
 
-  // Remove all active USER1 sessions.
+  // Remove all active USER 1 sessions.
   drupal_session_destroy_uid(1);
 
   // Update USER 1 with Guardian data.

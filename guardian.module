@@ -50,7 +50,7 @@ function _guardian_has_valid_data() {
 }
 
 /**
- * Helper function to destroy all USER1 sessions.
+ * Helper function to destroy all USER 1 sessions.
  */
 function _guardian_destroy_user1_sessions() {
   db_delete('sessions')
@@ -112,7 +112,7 @@ function guardian_mail($key, &$message, $params) {
 /**
  * Implements hook_user_presave().
  *
- * Save USER1 profile with default values.
+ * Save USER 1 profile with default values.
  */
 function guardian_user_presave(&$edit, $account, $category) {
   global $conf;
