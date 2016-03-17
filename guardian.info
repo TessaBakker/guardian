@@ -1,4 +1,4 @@
 name = Guardian
-description = Protects USER1 password and e-mail address.
+description = Allows USER 1 login with only password reset.
 core = 7.x
 package = Security
