@@ -73,7 +73,7 @@ function guardian_user_view($account, $view_mode, $langcode) {
 }
 
 /**
- * Implements hook_form_FORM_ID_alter for user_profile_form().
+ * Implements hook_form_FORM_ID_alter() for user_profile_form().
  */
 function guardian_form_user_profile_form_alter(&$form, &$form_state, $form_id) {
   global $user;
