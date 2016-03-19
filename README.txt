@@ -65,9 +65,9 @@ A: Create a mail group and use that mail address for USER 1, add as many
    remove that person from the mail group and your system is still secure from
    unwanted access.
 
-Q: Is it save to send a password reset to your e-mail?
+Q: Is it safe to send a password reset to your e-mail?
 
-A: It is saver than writing down your USER 1 password for your temporary intern.
+A: It is safer than writing down your USER 1 password for your temporary intern.
 
 Q: What if someone changes the the password?
 
@@ -80,7 +80,7 @@ Q: I didn't touch the site for 2 hours and suddenly I needed to login again,
    is this normal?
 
 A: Yes, after 2 hours of inactivity USER 1 sessions will be terminated.
-   This can be changed by adding $conf['guardian_hours']
+   This can be changed by adding $conf['guardian_hours'] in settings.php
 
 
 MAINTAINER
