@@ -182,11 +182,12 @@ function _guardian_account_is_root($account) {
 function _guardian_cleanup_database_variables() {
   global $conf;
 
-  /** @var DatabaseStatementInterface $query */
-  $query = db_query("DELETE FROM {variable} WHERE name = 'guardian_mail' OR name = 'guardian_hours'");
+  $count = db_delete('variable')
+    ->condition('name', array('guardian_mail', 'guardian_hours'), 'IN')
+    ->execute();
 
   // Unset everything if one or more variables were saved in the database.
-  if ($query->rowCount() > 0) {
+  if ($count > 0) {
     cache_clear_all('variables', 'cache_bootstrap');
     unset($conf['guardian_mail'], $conf['guardian_hours']);
   }
