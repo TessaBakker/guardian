@@ -5,27 +5,44 @@
  * Hooks and helpers for Guardian.
  */
 
+
+/**
+ * Implements hook_init().
+ */
+function guardian_init() {
+  global $user;
+
+  if ($user->uid === 1 && _guardian_check_valid_session($user)) {
+    _guardian_destroy_user1_sessions();
+  }
+}
+
 /**
  * Implements hook_cron().
  */
 function guardian_cron() {
   $account = user_load(1);
 
-  $is_valid = _guardian_has_valid_data();
-  $hours = variable_get('guardian_hours', 2);
+  $is_valid = _guardian_check_valid_data($account);
+  $session_valid = _guardian_check_valid_session($account);
 
-  // Destroy the session after user change or inactivity.
-  if ($is_valid || $account->access <= REQUEST_TIME - 3600 * $hours) {
+  // Destroy the session after unwanted user change or inactivity
+  if (!$is_valid || $session_valid) {
     _guardian_destroy_user1_sessions();
   }
 }
 
 /**
+ * Helper to check for valid Guardian user session lifetime.
+ */
+function _guardian_check_valid_session($account) {
+  return $account->access > REQUEST_TIME - 3600 * variable_get('guardian_hours', 2);
+}
+
+/**
  * Helper to check for valid Guardian user data.
  */
-function _guardian_has_valid_data() {
-  $account = user_load(1);
-
+function _guardian_check_valid_data($account) {
   _guardian_cleanup_database_variables();
 
   $guardian_mail = variable_get('guardian_mail', FALSE);
@@ -52,9 +69,15 @@ function _guardian_has_valid_data() {
  * Helper function to destroy all USER 1 sessions.
  */
 function _guardian_destroy_user1_sessions() {
-  db_delete('sessions')
-    ->condition('uid', 1)
-    ->execute();
+  global $user;
+
+  if ($user->uid === 1) {
+    drupal_set_message(t('Session too old, please login again.'), 'warning');
+    user_logout();
+  }
+  else {
+    drupal_session_destroy_uid(1);
+  }
 }
 
 /**

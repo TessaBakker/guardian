@@ -46,14 +46,13 @@ function guardian_enable() {
   // Remove all active USER 1 sessions.
   drupal_session_destroy_uid(1);
 
+  $account = user_load(1, TRUE);
+  $account->init = $guardian_mail;
+  $account->mail = $guardian_mail;
+  $account->pass = '';
+
   // Update USER 1 with Guardian data.
-  db_update('users')
-    ->condition('uid', '1', '=')
-    ->fields(array(
-      'pass' => '',
-      'init' => $guardian_mail,
-      'mail' => $guardian_mail,
-    ));
+  user_save($account);
 
   // Notify Guardian mail address of the enabled module.
   _guardian_mail_status_update(t('enabled'), 'enable');
