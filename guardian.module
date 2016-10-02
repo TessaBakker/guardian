@@ -12,7 +12,7 @@
 function guardian_init() {
   global $user;
 
-  if ($user->uid === 1 && _guardian_check_valid_session($user)) {
+  if (_guardian_account_is_root($user) && !_guardian_check_valid_session($user)) {
     _guardian_destroy_user1_sessions();
   }
 }
@@ -71,7 +71,7 @@ function _guardian_check_valid_data($account) {
 function _guardian_destroy_user1_sessions() {
   global $user;
 
-  if ($user->uid === 1) {
+  if (_guardian_account_is_root($user)) {
     drupal_set_message(t('Session too old, please login again.'), 'warning');
     user_logout();
   }
