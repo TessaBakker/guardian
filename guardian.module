@@ -2,18 +2,26 @@
 
 /**
  * @file
- * Hooks and helpers for Guardian.
+ * Contains guardian.module.
  */
 
+use Drupal\Core\Routing\RouteMatchInterface;
+use Drupal\guardian\Guardian;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 /**
- * Implements hook_init().
+ * Implements hook_help().
  */
-function guardian_init() {
-  global $user;
+function guardian_help($route_name, RouteMatchInterface $route_match) {
+  switch ($route_name) {
+    // Main module help for the guardian module.
+    case 'help.page.guardian':
+      $output = '';
+      $output .= '<h3>' . t('About') . '</h3>';
+      $output .= '<p>' . t('This module automatically unsets the user 1 password after a configurable amount of hours (default 2).') . '</p>';
+      return $output;
 
-  if (_guardian_account_is_root($user) && !_guardian_check_valid_session($user)) {
-    _guardian_destroy_user1_sessions();
+    default:
   }
 }
 
@@ -21,111 +29,16 @@ function guardian_init() {
  * Implements hook_cron().
  */
 function guardian_cron() {
-  $account = user_load(1);
+  $guardian = new Guardian();
 
-  $is_valid = _guardian_check_valid_data($account);
-  $session_valid = _guardian_check_valid_session($account);
+  $guardian->account = \Drupal\user\Entity\User::load(1);
+  $is_valid = $guardian->guardian_check_valid_data();
+  $session_valid = $guardian->guardian_check_valid_session();
 
   // Destroy the session after unwanted user change or inactivity
   if (!$is_valid || $session_valid) {
-    _guardian_destroy_user1_sessions();
+    $guardian->guardian_reset_user1();
   }
-}
-
-/**
- * Helper to check for valid Guardian user session lifetime.
- */
-function _guardian_check_valid_session($account) {
-  return $account->access > REQUEST_TIME - 3600 * variable_get('guardian_hours', 2);
-}
-
-/**
- * Helper to check for valid Guardian user data.
- */
-function _guardian_check_valid_data($account) {
-  _guardian_cleanup_database_variables();
-
-  $guardian_mail = variable_get('guardian_mail', FALSE);
-  $has_init = $account->init == $guardian_mail;
-  $has_mail = $account->mail == $guardian_mail;
-  $has_empty_pass = empty($account->pass);
-
-  $is_valid = $guardian_mail && $has_init && $has_mail && $has_empty_pass;
-
-  if (!$is_valid) {
-    unset($account->password);
-    watchdog('guardian', 'Guardian detected problems with USER 1 account: %user', array(
-      '%user' => var_export($account, TRUE),
-    ), WATCHDOG_ALERT);
-
-    // Reset the account.
-    user_save($account);
-  }
-
-  return $is_valid;
-}
-
-/**
- * Helper function to destroy all USER 1 sessions.
- */
-function _guardian_destroy_user1_sessions() {
-  global $user;
-
-  if (_guardian_account_is_root($user)) {
-    drupal_set_message(t('Session too old, please login again.'), 'warning');
-    user_logout();
-  }
-  else {
-    drupal_session_destroy_uid(1);
-  }
-}
-
-/**
- * Implements hook_user_view().
- */
-function guardian_user_view($account, $view_mode, $langcode) {
-  global $user;
-
-  $profile_user_is_root = _guardian_account_is_root($account);
-  $current_user_is_root = _guardian_account_is_root($user);
-
-  if ($profile_user_is_root && !$current_user_is_root) {
-    drupal_access_denied();
-    drupal_exit();
-  }
-}
-
-/**
- * Implements hook_form_FORM_ID_alter() for user_profile_form().
- */
-function guardian_form_user_profile_form_alter(&$form, &$form_state, $form_id) {
-  global $user;
-
-  $profile_user_is_root = _guardian_account_is_root($form['#user']);
-
-  // Don't alter form if profile isn't USER 1.
-  if (!$profile_user_is_root) {
-    return;
-  }
-
-  $current_user_is_root = _guardian_account_is_root($user);
-
-  // Show access denied on USER 1 profile, if current user isn't USER 1.
-  if (!$current_user_is_root) {
-    drupal_access_denied();
-    drupal_exit();
-  }
-
-  // Alter fields.
-  foreach (element_get_visible_children($form['account']) as $field) {
-    $form['account'][$field]['#disabled'] = TRUE;
-    $form['account'][$field]['#description'] = t('Disabled by Guardian.');
-  }
-
-  // Deny access to unusable fields.
-  $form['account']['pass']['#access'] = FALSE;
-  $form['account']['current_pass']['#access'] = FALSE;
-  $form['account']['current_pass_required_values']['#access'] = FALSE;
 }
 
 /**
@@ -143,17 +56,75 @@ function guardian_mail($key, &$message, $params) {
 }
 
 /**
+ *
+ * Implements hook_ENTITY_TYPE_view().
+ */
+function guardian_user_view(&$build, $account) {
+  $guardian = new Guardian();
+  $current_user_is_root = $guardian->guardian_account_is_root();
+  $guardian->account = $account;
+  $profile_user_is_root = $guardian->guardian_account_is_root();
+
+  if ($profile_user_is_root && !$current_user_is_root) {
+    throw new AccessDeniedHttpException();
+  }
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter() for user_profile_form().
+ */
+function guardian_form_user_form_alter(&$form, &$form_state, $form_id) {
+  $guardian = new Guardian();
+
+  // Current user.
+  $current_user_is_root = $guardian->guardian_account_is_root();
+
+  // Get user profile account.
+  $account = \Drupal::routeMatch()->getParameter('user');
+  if (!$account) {
+    return;
+  }
+
+  $guardian->account = $account;
+  $profile_user_is_root = $guardian->guardian_account_is_root();
+
+  // Don't alter form if profile isn't USER 1.
+  if (!$profile_user_is_root) {
+    return;
+  }
+
+  // Show access denied on USER 1 profile, if current user isn't USER 1.
+  if (!$current_user_is_root) {
+    throw new AccessDeniedHttpException();
+  }
+
+  // Note: element_get_visible_children does not exist anymore,
+  // setting this alter fields manually:
+  $fields = array('mail', 'name', 'status', 'roles');
+  foreach ($fields as $field) {
+    $form['account'][$field]['#disabled'] = TRUE;
+    $form['account'][$field]['#description'] = t('Disabled by Guardian.');
+  }
+
+  // Deny access to unusable fields.
+  $form['account']['pass']['#access'] = FALSE;
+  $form['account']['current_pass']['#access'] = FALSE;
+}
+
+/**
  * Implements hook_user_presave().
  *
  * Save USER 1 profile with default values.
  */
-function guardian_user_presave(&$edit, $account, $category) {
-  if (_guardian_account_is_root($account)) {
-    _guardian_cleanup_database_variables();
+function guardian_user_presave($account) {
+  $guardian = new Guardian();
+  $guardian->account = $account;
+  if ($guardian->guardian_account_is_root()) {
+    $guardian->guardian_cleanup_database_variables();
 
-    $edit['pass'] = '';
-    $edit['mail'] = variable_get('guardian_mail', '');
-    $edit['status'] = 1;
+    $account->pass = '';
+    $account->mail = \Drupal::config('guardian.global')->get('mail');
+    $account->satus = 1;
   }
 }
 
@@ -161,57 +132,15 @@ function guardian_user_presave(&$edit, $account, $category) {
  * Implements hook_mail_alter().
  */
 function guardian_mail_alter(&$message) {
-  _guardian_cleanup_database_variables();
+  $guardian = new Guardian();
+
+  $guardian->guardian_cleanup_database_variables();
 
   $is_password_reset_mail = ($message['id'] == 'user_password_reset');
-  $is_guardian_mail = ($message['to'] == variable_get('guardian_mail'));
+  $is_guardian_mail = ($message['to'] == \Drupal::config('guardian.global')->get('mail'));
 
   if ($is_password_reset_mail && $is_guardian_mail) {
-    _guardian_add_metadata_to_body($message['body']);
+    $guardian->guardian_add_metadata_to_body($message['body']);
   }
 }
 
-/**
- * Helper to add metadata within the body of an e-mail.
- *
- * @param array $body
- *   Message of mail.
- */
-function _guardian_add_metadata_to_body(&$body) {
-  $body[] = t('Client IP: @ip', array('@ip' => ip_address()));
-  $body[] = t('Hostname: @host', array('@host' => gethostname()));
-
-  if (drupal_is_cli()) {
-    $body[] = t('Terminal user: @user', array('@user' => $_SERVER['USER']));
-  }
-
-  drupal_alter('guardian_add_metadata_to_body', $body);
-}
-
-/**
- * Checks if account is USER 1.
- */
-function _guardian_account_is_root($account) {
-
-  // Type casting, because uid is not always an integer and can't be a boolean.
-  return (string) $account->uid === '1';
-}
-
-/**
- * Remove any guardian variable in the database.
- *
- * Every variable must be set within settings.php.
- */
-function _guardian_cleanup_database_variables() {
-  global $conf;
-
-  $count = db_delete('variable')
-    ->condition('name', array('guardian_mail', 'guardian_hours'), 'IN')
-    ->execute();
-
-  // Unset everything if one or more variables were saved in the database.
-  if ($count > 0) {
-    cache_clear_all('variables', 'cache_bootstrap');
-    unset($conf['guardian_mail'], $conf['guardian_hours']);
-  }
-}

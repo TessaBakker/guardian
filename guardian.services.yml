@@ -1,0 +1,5 @@
+services:
+  guardian_event_subscriber:
+    class: '\Drupal\guardian\EventSubscriber\guardianSubscriber'
+    tags:
+      - {name: 'event_subscriber'}

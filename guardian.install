@@ -5,29 +5,32 @@
  * Install and update functions.
  */
 
+use Drupal\guardian\Guardian;
+use Drupal\Core\Password\PhpassHashedPassword;
+
 /**
  * Implements hook_requirements().
  */
 function guardian_requirements($phase) {
-  module_load_include('module', 'guardian');
+  \Drupal::configFactory()->getEditable('guardian.global.mail')->delete();
+  \Drupal::configFactory()->getEditable('guardian.global.hours')->delete();
+  drupal_static_reset();
 
-  _guardian_cleanup_database_variables();
-
-  $t = get_t();
   $requirements = array();
 
-  $guardian_mail = variable_get('guardian_mail');
+  $guardian_mail = \Drupal::config('guardian.global')->get('mail');
+
   if (empty($guardian_mail)) {
     $requirements['guardian'] = array(
-      'title' => $t('Guardian'),
-      'description' => $t('Missing $conf[\'guardian_mail\'] value in settings.php.'),
+      'title' => t('Guardian'),
+      'description' => t('Missing $config[\'guardian.global\'][\'mail\'] value in settings.php.'),
       'severity' => REQUIREMENT_ERROR,
     );
   }
-  elseif (!valid_email_address($guardian_mail)) {
+  elseif (!\Drupal::service('email.validator')->isValid($guardian_mail)) {
     $requirements['guardian'] = array(
-      'title' => $t('Guardian'),
-      'description' => $t('$conf[\'guardian_mail\'] needs a be a valid mail address'),
+      'title' => t('Guardian'),
+      'description' => t('$config[\'guardian.global\'][\'mail\'] needs a be a valid mail address'),
       'severity' => REQUIREMENT_ERROR,
     );
   }
@@ -36,79 +39,41 @@ function guardian_requirements($phase) {
 }
 
 /**
- * Implements hook_enable().
+ * Implements hook_install().
  */
-function guardian_enable() {
-  _guardian_cleanup_database_variables();
+function guardian_install() {
+  $guardian = new Guardian();
 
-  $guardian_mail = variable_get('guardian_mail');
+  // Clears all database config settings.
+  $guardian->guardian_cleanup_database_variables();
 
-  // Remove all active USER 1 sessions.
-  drupal_session_destroy_uid(1);
-
-  $account = user_load(1, TRUE);
-  $account->init = $guardian_mail;
-  $account->mail = $guardian_mail;
-  $account->pass = '';
-
-  // Update USER 1 with Guardian data.
-  user_save($account);
+  // Clear the user#1 session and reset the account.
+  $guardian->guardian_reset_user1();
 
   // Notify Guardian mail address of the enabled module.
-  _guardian_mail_status_update(t('enabled'), 'enable');
+  $guardian->guardian_mail_status_update(t('enabled'), 'enable');
 }
 
 /**
- * Implements hook_disable().
+ * Implements hook_uninstall().
  */
-function guardian_disable() {
-
-  // Get correct hashing function.
-  require_once DRUPAL_ROOT . '/' . variable_get('password_inc', 'includes/password.inc');
+function guardian_uninstall() {
+  $guardian = new Guardian();
 
   // Generate new password.
   $password = user_password();
+  $pass_hash = new PhpassHashedPassword(1);
 
   // Set new USER 1 password.
-  db_update('users')
-    ->condition('uid', '1', '=')
-    ->fields(array(
-      'pass' => user_hash_password($password),
-    ))
-    ->execute();
+  $account = \Drupal\user\Entity\User::load(1);
+  $account->pass = $pass_hash->hash($password);
+  $account->save();
 
   // Notify user about new password.
   drupal_set_message(t('Your USER 1 password has been reset to: %password', array('%password' => $password)));
 
   // Notify guardian mail about the disabled module.
-  _guardian_mail_status_update(t('disabled'), 'disable');
+  $guardian->guardian_mail_status_update(t('disabled'), 'disable');
 }
 
-/**
- * Send a status message to the Guardian mail address.
- */
-function _guardian_mail_status_update($status_text, $status_mail) {
 
-  $subject = t('Guardian has been @status for @site', array(
-    '@site' => variable_get('site_name'),
-    '@status' => $status_text,
-  ));
-  $body = array($subject);
-
-  _guardian_add_metadata_to_body($body);
-
-  $params = array(
-    'body' => $body,
-    'subject' => $subject,
-  );
-
-  _guardian_cleanup_database_variables();
-  $guardian_mail = variable_get('guardian_mail');
-
-  if ($guardian_mail) {
-    drupal_mail('guardian', $status_mail, $guardian_mail, LANGUAGE_NONE, $params, $guardian_mail);
-  }
-
-  // In case mail won't work we want a log.
-  watchdog('guardian', 'Guardian has been @status.', array('@status' => $status_text), WATCHDOG_NOTICE);
-}
