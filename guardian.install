@@ -75,5 +75,3 @@ function guardian_uninstall() {
   // Notify guardian mail about the disabled module.
   $guardian->guardian_mail_status_update(t('disabled'), 'disable');
 }
-
-

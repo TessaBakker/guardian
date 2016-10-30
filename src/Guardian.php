@@ -57,6 +57,8 @@ class Guardian {
 
     // Note: Drupal mail logs failed mailings in logs, no need to do this here.
     if ($guardian_mail) {
+
+      /** @var \Drupal\Core\Mail\MailManagerInterface $mailManager */
       $mailManager = \Drupal::service('plugin.manager.mail');
       $mailManager->mail('guardian', $status_mail, $guardian_mail, LANGCODE_NOT_SPECIFIED, $params, NULL, TRUE);
     }

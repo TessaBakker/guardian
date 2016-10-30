@@ -124,7 +124,7 @@ function guardian_user_presave($account) {
 
     $account->pass = '';
     $account->mail = \Drupal::config('guardian.global')->get('mail');
-    $account->satus = 1;
+    $account->status = 1;
   }
 }
 
@@ -134,6 +134,7 @@ function guardian_user_presave($account) {
 function guardian_mail_alter(&$message) {
   $guardian = new Guardian();
 
+  // @todo Do not execute this with every mail.
   $guardian->guardian_cleanup_database_variables();
 
   $is_password_reset_mail = ($message['id'] == 'user_password_reset');
@@ -143,4 +144,3 @@ function guardian_mail_alter(&$message) {
     $guardian->guardian_add_metadata_to_body($message['body']);
   }
 }
-
