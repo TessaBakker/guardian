@@ -193,6 +193,12 @@ function _guardian_add_metadata_to_body(&$body) {
  */
 function _guardian_account_is_root($account) {
 
+  // The uid might not be available at this point, for example in a user
+  // migration.
+  if (!isset($account->uid)) {
+    return FALSE;
+  }
+
   // Type casting, because uid is not always an integer and can't be a boolean.
   return (string) $account->uid === '1';
 }
