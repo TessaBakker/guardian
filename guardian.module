@@ -123,7 +123,7 @@ function guardian_user_presave($account) {
     $guardian->guardian_cleanup_database_variables();
 
     $account->pass = '';
-    $account->mail = \Drupal::config('guardian.global')->get('mail');
+    $account->mail = \Drupal\Core\Site\Settings::get('guardian_mail');
     $account->status = 1;
   }
 }
@@ -138,7 +138,7 @@ function guardian_mail_alter(&$message) {
   $guardian->guardian_cleanup_database_variables();
 
   $is_password_reset_mail = ($message['id'] == 'user_password_reset');
-  $is_guardian_mail = ($message['to'] == \Drupal::config('guardian.global')->get('mail'));
+  $is_guardian_mail = ($message['to'] == \Drupal\Core\Site\Settings::get('guardian_mail'));
 
   if ($is_password_reset_mail && $is_guardian_mail) {
     $guardian->guardian_add_metadata_to_body($message['body']);

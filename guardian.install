@@ -12,26 +12,32 @@ use Drupal\Core\Password\PhpassHashedPassword;
  * Implements hook_requirements().
  */
 function guardian_requirements($phase) {
-  \Drupal::configFactory()->getEditable('guardian.global.mail')->delete();
-  \Drupal::configFactory()->getEditable('guardian.global.hours')->delete();
-  drupal_static_reset();
-
   $requirements = array();
-
-  $guardian_mail = \Drupal::config('guardian.global')->get('mail');
+  $guardian_mail = \Drupal\Core\Site\Settings::get('guardian_mail');
 
   if (empty($guardian_mail)) {
     $requirements['guardian'] = array(
       'title' => t('Guardian'),
-      'description' => t('Missing $config[\'guardian.global\'][\'mail\'] value in settings.php.'),
+      'description' => t('Missing $settings[\'guardian_mail\'] value in settings.php.'),
       'severity' => REQUIREMENT_ERROR,
     );
   }
   elseif (!\Drupal::service('email.validator')->isValid($guardian_mail)) {
     $requirements['guardian'] = array(
       'title' => t('Guardian'),
-      'description' => t('$config[\'guardian.global\'][\'mail\'] needs a be a valid mail address'),
+      'description' => t('$settings[\'guardian_mail\'] needs a be a valid mail address'),
       'severity' => REQUIREMENT_ERROR,
+    );
+  }
+  elseif ($phase == 'runtime') {
+    $timeout_count = \Drupal\Core\Site\Settings::get('guardian_hours', 2);
+    $requirements['guardian'] = array(
+      'title' => t('Guardian'),
+      'value' => \Drupal::translation()->formatPlural($timeout_count, 'Timeout: @count hour', 'Timout: @count hours', array(
+        '@count' => $timeout_count,
+      )),
+      'description' => t('Set with mail address %mail', array('%mail' => $guardian_mail)),
+      'severity' => REQUIREMENT_OK,
     );
   }
 
@@ -43,9 +49,6 @@ function guardian_requirements($phase) {
  */
 function guardian_install() {
   $guardian = new Guardian();
-
-  // Clears all database config settings.
-  $guardian->guardian_cleanup_database_variables();
 
   // Clear the user#1 session and reset the account.
   $guardian->guardian_reset_user1();

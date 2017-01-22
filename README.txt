@@ -31,7 +31,7 @@ INSTALLATION
 ------------
 
  * Set the preferred mail address of USER 1 in your settings.php:
-   $conf['guardian_mail'] = 'admin@example.com'
+   $settings['guardian_mail'] = 'admin@example.com'
 
  * Install the module and Guardian will send a notification to the configured
    mail address.
@@ -80,7 +80,7 @@ Q: I didn't touch the site for 2 hours and suddenly I needed to login again,
    is this normal?
 
 A: Yes, after 2 hours of inactivity USER 1 sessions will be terminated.
-   This can be changed by adding $conf['guardian_hours'] in settings.php
+   This can be changed by adding $settings['guardian_hours'] in settings.php
 
 
 MAINTAINER

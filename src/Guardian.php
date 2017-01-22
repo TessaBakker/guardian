@@ -1,6 +1,7 @@
 <?php
 
 namespace Drupal\guardian;
+use Drupal\Core\Language\LanguageInterface;
 
 /**
  * Class Guardian
@@ -23,17 +24,6 @@ class Guardian {
   }
 
   /**
-   * Remove any guardian variable in the database.
-   *
-   * Every variable must be set within settings.php.
-   */
-  public function guardian_cleanup_database_variables() {
-    \Drupal::configFactory()->getEditable('guardian.global.mail')->delete();
-    \Drupal::configFactory()->getEditable('guardian.global.hours')->delete();
-    drupal_static_reset();
-  }
-
-  /**
    * Send a status message to the Guardian mail address.
    */
   public function guardian_mail_status_update($status_text, $status_mail) {
@@ -53,14 +43,14 @@ class Guardian {
 
     $this->guardian_cleanup_database_variables();
 
-    $guardian_mail = \Drupal::config('guadian.global')->get('mail');
+    $guardian_mail = \Drupal\Core\Site\Settings::get('guardian_mail');
 
     // Note: Drupal mail logs failed mailings in logs, no need to do this here.
     if ($guardian_mail) {
 
       /** @var \Drupal\Core\Mail\MailManagerInterface $mailManager */
       $mailManager = \Drupal::service('plugin.manager.mail');
-      $mailManager->mail('guardian', $status_mail, $guardian_mail, LANGCODE_NOT_SPECIFIED, $params, NULL, TRUE);
+      $mailManager->mail('guardian', $status_mail, $guardian_mail, LanguageInterface::LANGCODE_NOT_SPECIFIED, $params, NULL, TRUE);
     }
   }
 
@@ -70,7 +60,7 @@ class Guardian {
    * @see guardian_cron().
    */
   public function guardian_reset_user1() {
-    $guardian_mail = \Drupal::config('guardian.global')->get('mail');
+    $guardian_mail = \Drupal\Core\Site\Settings::get('guardian_mail');
 
     // Remove all active USER 1 sessions.
     $session_manager = \Drupal::service('session_manager');
@@ -112,7 +102,7 @@ class Guardian {
   public function guardian_check_valid_data() {
     $this->guardian_cleanup_database_variables();
 
-    $guardian_mail = \Drupal::config('guardian.global')->get('mail');
+    $guardian_mail = \Drupal\Core\Site\Settings::get('guardian_mail');
     $has_init = $this->account->init->value == $guardian_mail;
     $has_mail = $this->account->mail->value == $guardian_mail;
     $has_empty_pass = empty($this->account->pass->value);
@@ -134,8 +124,7 @@ class Guardian {
    * @return bool TRUE if last access was still in time limit.
    */
   public function guardian_check_valid_session() {
-    $config = \Drupal::config('guardian.global');
-    return $this->account->access->value > REQUEST_TIME - 3600 * $config->get('hours');
+    return $this->account->access->value > REQUEST_TIME - 3600 * \Drupal\Core\Site\Settings::get('guardian_hours', 2);
   }
 
   /**
