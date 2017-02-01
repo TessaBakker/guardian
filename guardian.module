@@ -117,15 +117,17 @@ function guardian_form_user_profile_form_alter(&$form, &$form_state, $form_id) {
   }
 
   // Alter fields.
-  foreach (element_get_visible_children($form['account']) as $field) {
-    $form['account'][$field]['#disabled'] = TRUE;
-    $form['account'][$field]['#description'] = t('Disabled by Guardian.');
-  }
+  if (!empty($form['account'])) {
+    foreach (element_get_visible_children($form['account']) as $field) {
+      $form['account'][$field]['#disabled'] = TRUE;
+      $form['account'][$field]['#description'] = t('Disabled by Guardian.');
+    }
 
-  // Deny access to unusable fields.
-  $form['account']['pass']['#access'] = FALSE;
-  $form['account']['current_pass']['#access'] = FALSE;
-  $form['account']['current_pass_required_values']['#access'] = FALSE;
+    // Deny access to unusable fields.
+    $form['account']['pass']['#access'] = FALSE;
+    $form['account']['current_pass']['#access'] = FALSE;
+    $form['account']['current_pass_required_values']['#access'] = FALSE;
+  }
 }
 
 /**
