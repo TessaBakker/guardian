@@ -73,6 +73,7 @@ function _guardian_destroy_user1_sessions() {
 
   if (_guardian_account_is_root($user)) {
     drupal_set_message(t('Session too old, please login again.'), 'warning');
+    module_load_include('inc', 'user', 'user.pages');
     user_logout();
   }
   else {
