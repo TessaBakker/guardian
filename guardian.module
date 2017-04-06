@@ -7,12 +7,14 @@
 
 /**
  * Implements hook_init().
+ *
+ * Check guarded user for invalid session, unless it is processing an user/reset link.
  */
 function guardian_init() {
   global $user;
 
-  if (_guardian_account_is_root($user) && !_guardian_check_valid_session($user)) {
-    _guardian_destroy_user1_sessions();
+  if (_guardian_account_is_guarded($user) && !_guardian_check_valid_session($user) && strpos('user/reset', current_path()) === FALSE) {
+    _guardian_destroy_guarded_account($user);
   }
 }
 
@@ -20,14 +22,14 @@ function guardian_init() {
  * Implements hook_cron().
  */
 function guardian_cron() {
-  $account = user_load(1);
+  $account = user_load(1, TRUE);
 
   $is_valid = _guardian_check_valid_data($account);
   $session_valid = _guardian_check_valid_session($account);
 
   // Destroy the session after unwanted user change or inactivity.
   if (!$is_valid || $session_valid) {
-    _guardian_destroy_user1_sessions();
+    _guardian_destroy_guarded_account($account);
   }
 }
 
@@ -35,7 +37,7 @@ function guardian_cron() {
  * Helper to check for valid Guardian user session lifetime.
  */
 function _guardian_check_valid_session($account) {
-  return $account->access > REQUEST_TIME - 3600 * variable_get('guardian_hours', 2);
+  return $account->access > (REQUEST_TIME - 3600 * variable_get('guardian_hours', 2));
 }
 
 /**
@@ -53,8 +55,11 @@ function _guardian_check_valid_data($account) {
 
   if (!$is_valid) {
     unset($account->password);
-    watchdog('guardian', 'Guardian detected problems with USER 1 account: %user', array(
-      '%user' => var_export($account, TRUE),
+    watchdog('guardian', 'Problems with guarded user name <em>@username (id:@uid, mail:@mail, init:@init)</em>', array(
+      '@username' => $account->name,
+      '@uid' => $account->uid,
+      '@mail' => $account->mail,
+      '@init' => $account->init,
     ), WATCHDOG_ALERT);
 
     // Reset the account.
@@ -65,18 +70,32 @@ function _guardian_check_valid_data($account) {
 }
 
 /**
- * Helper function to destroy all USER 1 sessions.
+ * Helper function to destroy all guarded user sessions.
+ *
+ * @see user_logout()
  */
-function _guardian_destroy_user1_sessions() {
-  global $user;
+function _guardian_destroy_guarded_account($account) {
 
-  if (_guardian_account_is_root($user)) {
-    drupal_set_message(t('Session too old, please login again.'), 'warning');
-    module_load_include('inc', 'user', 'user.pages');
-    user_logout();
-  }
-  else {
-    drupal_session_destroy_uid(1);
+  // Destroy all sessions, saved in the database.
+  $session_state = drupal_save_session();
+  drupal_save_session(TRUE);
+  drupal_session_destroy_uid($account->uid);
+  drupal_save_session($session_state);
+
+  // Destroy session of active guarded user.
+  if (_guardian_account_is_guarded($account)) {
+    watchdog('guardian', 'Session closed for %name.', array('%name' => $account->name));
+
+    module_invoke_all('user_logout', $account);
+    session_destroy();
+
+    $hours = variable_get('guardian_hours', 2);
+    $message = format_plural($hours,
+      'Your last access was more than 1 hour ago, please login again.',
+      'Your last access was more than @count hours ago, please login again.', array('@count' => $hours));
+    drupal_set_message($message, 'warning');
+
+    drupal_goto('user/password', array('query' => array('destination' => current_path())));
   }
 }
 
@@ -86,10 +105,10 @@ function _guardian_destroy_user1_sessions() {
 function guardian_user_view($account, $view_mode, $langcode) {
   global $user;
 
-  $profile_user_is_root = _guardian_account_is_root($account);
-  $current_user_is_root = _guardian_account_is_root($user);
+  $profile_user_is_guarded = _guardian_account_is_guarded($account);
+  $current_user_is_guarded = _guardian_account_is_guarded($user);
 
-  if ($profile_user_is_root && !$current_user_is_root) {
+  if ($profile_user_is_guarded && !$current_user_is_guarded) {
     drupal_access_denied();
     drupal_exit();
   }
@@ -101,17 +120,17 @@ function guardian_user_view($account, $view_mode, $langcode) {
 function guardian_form_user_profile_form_alter(&$form, &$form_state, $form_id) {
   global $user;
 
-  $profile_user_is_root = _guardian_account_is_root($form['#user']);
+  $profile_user_is_guarded = _guardian_account_is_guarded($form['#user']);
 
-  // Don't alter form if profile isn't USER 1.
-  if (!$profile_user_is_root) {
+  // Don't alter form if profile isn't guarded.
+  if (!$profile_user_is_guarded) {
     return;
   }
 
-  $current_user_is_root = _guardian_account_is_root($user);
+  $current_user_is_guarded = _guardian_account_is_guarded($user);
 
-  // Show access denied on USER 1 profile, if current user isn't USER 1.
-  if (!$current_user_is_root) {
+  // Show access denied on guarded profile, if current user isn't guarded.
+  if (!$current_user_is_guarded) {
     drupal_access_denied();
     drupal_exit();
   }
@@ -147,14 +166,15 @@ function guardian_mail($key, &$message, $params) {
 /**
  * Implements hook_user_presave().
  *
- * Save USER 1 profile with default values.
+ * Save guarded profile with default values.
  */
 function guardian_user_presave(&$edit, $account, $category) {
-  if (_guardian_account_is_root($account)) {
+  if (_guardian_account_is_guarded($account)) {
     _guardian_cleanup_database_variables();
 
     $edit['pass'] = '';
     $edit['mail'] = variable_get('guardian_mail', '');
+    $edit['init'] = variable_get('guardian_mail', '');
     $edit['status'] = 1;
   }
 }
@@ -191,9 +211,9 @@ function _guardian_add_metadata_to_body(array &$body) {
 }
 
 /**
- * Checks if account is USER 1.
+ * Checks if account is guarded.
  */
-function _guardian_account_is_root($account) {
+function _guardian_account_is_guarded($account) {
 
   // The uid might not be available at this point, for example in a user
   // migration.

@@ -43,16 +43,24 @@ function guardian_enable() {
 
   $guardian_mail = variable_get('guardian_mail');
 
-  // Remove all active USER 1 sessions.
-  drupal_session_destroy_uid(1);
+  $guarded_account = user_load(1, TRUE);
 
-  $account = user_load(1, TRUE);
-  $account->init = $guardian_mail;
-  $account->mail = $guardian_mail;
-  $account->pass = '';
+  if ($guarded_account) {
+    $guarded_account->init = $guardian_mail;
+    $guarded_account->mail = $guardian_mail;
+    $guarded_account->pass = '';
 
-  // Update USER 1 with Guardian data.
-  user_save($account);
+    // Remove all active guarded user sessions.
+    drupal_session_destroy_uid($guarded_account->uid);
+
+    // Update guarded user with Guardian data.
+    user_save($guarded_account);
+
+    drupal_set_message(t('User name <em>@username (id:@uid)</em> will be guarded by Guardian.', array(
+      '@username' => $guarded_account->name,
+      '@uid' => $guarded_account->uid,
+    )));
+  }
 
   // Notify Guardian mail address of the enabled module.
   _guardian_mail_status_update(t('enabled'), 'enable');
@@ -62,23 +70,31 @@ function guardian_enable() {
  * Implements hook_disable().
  */
 function guardian_disable() {
+  $guarded_account = user_load(1, TRUE);
 
-  // Get correct hashing function.
-  require_once DRUPAL_ROOT . '/' . variable_get('password_inc', 'includes/password.inc');
+  if ($guarded_account) {
 
-  // Generate new password.
-  $password = user_password();
+    // Get correct hashing function.
+    require_once DRUPAL_ROOT . '/' . variable_get('password_inc', 'includes/password.inc');
 
-  // Set new USER 1 password.
-  db_update('users')
-    ->condition('uid', '1', '=')
-    ->fields(array(
-      'pass' => user_hash_password($password),
-    ))
-    ->execute();
+    // Generate new password.
+    $password = user_password();
 
-  // Notify user about new password.
-  drupal_set_message(t('Your USER 1 password has been reset to: %password', array('%password' => $password)));
+    // Set new guarded user password.
+    db_update('users')
+      ->condition('uid', $guarded_account->uid, '=')
+      ->fields(array(
+        'pass' => user_hash_password($password),
+      ))
+      ->execute();
+
+    // Notify user about new password.
+    drupal_set_message(t('Your guarded user name <em>@username (id:@uid)</em> has a new password: %password', array(
+      '@username' => $guarded_account->name,
+      '@uid' => $guarded_account->uid,
+      '%password' => $password,
+    )));
+  }
 
   // Notify guardian mail about the disabled module.
   _guardian_mail_status_update(t('disabled'), 'disable');
