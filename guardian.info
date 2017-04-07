@@ -2,3 +2,5 @@ name = Guardian
 description = Allows guarded users to log in with only password reset.
 core = 7.x
 package = Security
+
+settings = admin/config/system/guardian

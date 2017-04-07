@@ -15,18 +15,23 @@ function guardian_requirements($phase) {
 
   $t = get_t();
   $requirements = array();
+  $requirements['guardian'] = array(
+    'title' => $t('Guardian'),
+    'value' => $t('Enabled'),
+    'severity' => REQUIREMENT_OK,
+  );
 
   $guardian_mail = variable_get('guardian_mail');
   if (empty($guardian_mail)) {
     $requirements['guardian'] = array(
-      'title' => $t('Guardian'),
+      'value' => $t('Failure'),
       'description' => $t('Missing $conf[\'guardian_mail\'] value in settings.php.'),
       'severity' => REQUIREMENT_ERROR,
     );
   }
   elseif (!valid_email_address($guardian_mail)) {
     $requirements['guardian'] = array(
-      'title' => $t('Guardian'),
+      'value' => $t('Failure'),
       'description' => $t('$conf[\'guardian_mail\'] needs a be a valid mail address'),
       'severity' => REQUIREMENT_ERROR,
     );
@@ -41,20 +46,23 @@ function guardian_requirements($phase) {
 function guardian_enable() {
   _guardian_cleanup_database_variables();
 
-  $guardian_mail = variable_get('guardian_mail');
+  $guarded_uids = _guardian_guarded_users();
+  $guarded_accounts = user_load_multiple(array_keys($guarded_uids), array(), TRUE);
 
-  $guarded_account = user_load(1, TRUE);
+  foreach($guarded_accounts as $guarded_account) {
 
-  if ($guarded_account) {
-    $guarded_account->init = $guardian_mail;
-    $guarded_account->mail = $guardian_mail;
-    $guarded_account->pass = '';
+    if (!isset($guarded_uids[$guarded_account->uid])) {
+      continue;
+    }
+
+    $guarded_mail = $guarded_uids[$guarded_account->uid];
+
+    // Update guarded user with Guardian data.
+    _guardian_account_defaults($guarded_account, $guarded_mail);
+    user_save($guarded_account);
 
     // Remove all active guarded user sessions.
     drupal_session_destroy_uid($guarded_account->uid);
-
-    // Update guarded user with Guardian data.
-    user_save($guarded_account);
 
     drupal_set_message(t('User name <em>@username (id:@uid)</em> will be guarded by Guardian.', array(
       '@username' => $guarded_account->name,
@@ -62,20 +70,28 @@ function guardian_enable() {
     )));
   }
 
+  $account = user_load(1, TRUE);
+  $language = user_preferred_language($account);
+
   // Notify Guardian mail address of the enabled module.
-  _guardian_mail_status_update(t('enabled'), 'enable');
+  _guardian_mail_status_update(TRUE, $language->language);
 }
 
 /**
  * Implements hook_disable().
  */
 function guardian_disable() {
-  $guarded_account = user_load(1, TRUE);
+  $guarded_uids = _guardian_guarded_users();
+  $guarded_accounts = user_load_multiple(array_keys($guarded_uids), array(), TRUE);
 
-  if ($guarded_account) {
+  // Get correct hashing function.
+  require_once DRUPAL_ROOT . '/' . variable_get('password_inc', 'includes/password.inc');
 
-    // Get correct hashing function.
-    require_once DRUPAL_ROOT . '/' . variable_get('password_inc', 'includes/password.inc');
+  foreach($guarded_accounts as $guarded_account) {
+
+    if (!isset($guarded_uids[$guarded_account->uid])) {
+      continue;
+    }
 
     // Generate new password.
     $password = user_password();
@@ -87,28 +103,40 @@ function guardian_disable() {
         'pass' => user_hash_password($password),
       ))
       ->execute();
-
-    // Notify user about new password.
-    drupal_set_message(t('Your guarded user name <em>@username (id:@uid)</em> has a new password: %password', array(
-      '@username' => $guarded_account->name,
-      '@uid' => $guarded_account->uid,
-      '%password' => $password,
-    )));
   }
 
+  $account = user_load(1, TRUE);
+  $language = user_preferred_language($account);
+
   // Notify guardian mail about the disabled module.
-  _guardian_mail_status_update(t('disabled'), 'disable');
+  _guardian_mail_status_update(FALSE, $language->language);
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function guardian_uninstall() {
+  variable_del('guardian_description_disabled_element');
+  variable_del('guardian_mail');
+  variable_del('guardian_hours');
 }
 
 /**
  * Send a status message to the Guardian mail address.
  */
-function _guardian_mail_status_update($status_text, $status_mail) {
+function _guardian_mail_status_update($status, $language) {
 
-  $subject = t('Guardian has been @status for @site', array(
-    '@site' => variable_get('site_name'),
-    '@status' => $status_text,
-  ));
+  if ($status) {
+    $subject = t('Guardian has been enabled for @site', array(
+      '@site' => variable_get('site_name'),
+    ));
+  }
+  else {
+    $subject = t('Guardian has been disabled for @site', array(
+      '@site' => variable_get('site_name'),
+    ));
+  }
+
   $body = array($subject);
 
   _guardian_add_metadata_to_body($body);
@@ -121,10 +149,7 @@ function _guardian_mail_status_update($status_text, $status_mail) {
   _guardian_cleanup_database_variables();
   $guardian_mail = variable_get('guardian_mail');
 
-  if ($guardian_mail) {
-    drupal_mail('guardian', $status_mail, $guardian_mail, LANGUAGE_NONE, $params, $guardian_mail);
+  if (valid_email_address($guardian_mail)) {
+    drupal_mail('guardian', 'notification', $guardian_mail, $language, $params, variable_get('site_mail'));
   }
-
-  // In case mail won't work we want a log.
-  watchdog('guardian', 'Guardian has been @status.', array('@status' => $status_text), WATCHDOG_NOTICE);
 }

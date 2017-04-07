@@ -13,60 +13,93 @@
 function guardian_init() {
   global $user;
 
-  if (_guardian_account_is_guarded($user) && !_guardian_check_valid_session($user) && strpos('user/reset', current_path()) === FALSE) {
-    _guardian_destroy_guarded_account($user);
+  if (!_guardian_account_is_guarded($user)) {
+    return;
   }
+
+  if (_guardian_account_has_valid_data($user) && _guardian_account_has_valid_session($user)) {
+    return;
+  }
+
+  if (strpos('user/reset', current_path()) === 0)  {
+    return;
+  }
+
+  _guardian_destroy_session_of_guarded_account($user);
 }
 
 /**
  * Implements hook_cron().
+ *
+ * Destroy User1 sessions only on cron, leave lesser accounts for guardian_init().
  */
 function guardian_cron() {
   $account = user_load(1, TRUE);
 
-  $is_valid = _guardian_check_valid_data($account);
-  $session_valid = _guardian_check_valid_session($account);
+  $is_valid = _guardian_account_has_valid_data($account);
+  $session_valid = _guardian_account_has_valid_session($account);
 
   // Destroy the session after unwanted user change or inactivity.
   if (!$is_valid || $session_valid) {
-    _guardian_destroy_guarded_account($account);
+    _guardian_destroy_session_of_guarded_account($account);
   }
+}
+
+/**
+ * Implements hook_menu().
+ */
+function guardian_menu() {
+  $items = array();
+
+  $items['admin/config/system/guardian'] = array(
+    'title' => 'Guardian',
+    'description' => 'Settings for custom messages.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('guardian_settings_form'),
+    'access arguments' => array('administer site configuration'),
+    'file' => 'guardian.admin.inc',
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  return $items;
 }
 
 /**
  * Helper to check for valid Guardian user session lifetime.
  */
-function _guardian_check_valid_session($account) {
+function _guardian_account_has_valid_session($account) {
   return $account->access > (REQUEST_TIME - 3600 * variable_get('guardian_hours', 2));
 }
 
 /**
  * Helper to check for valid Guardian user data.
  */
-function _guardian_check_valid_data($account) {
+function _guardian_account_has_valid_data($account) {
   _guardian_cleanup_database_variables();
 
-  $guardian_mail = variable_get('guardian_mail', FALSE);
-  $has_init = $account->init == $guardian_mail;
-  $has_mail = $account->mail == $guardian_mail;
-  $has_empty_pass = empty($account->pass);
-
-  $is_valid = $guardian_mail && $has_init && $has_mail && $has_empty_pass;
-
-  if (!$is_valid) {
-    unset($account->password);
-    watchdog('guardian', 'Problems with guarded user name <em>@username (id:@uid, mail:@mail, init:@init)</em>', array(
-      '@username' => $account->name,
-      '@uid' => $account->uid,
-      '@mail' => $account->mail,
-      '@init' => $account->init,
-    ), WATCHDOG_ALERT);
-
-    // Reset the account.
-    user_save($account);
+  if ((string) $account->uid === '1') {
+    $guardian_mail = variable_get('guardian_mail', FALSE);
+    $valid_mail = $account->init == $guardian_mail;
+    $valid_mail = $valid_mail && $account->mail == $guardian_mail;
+  }
+  else {
+    $valid_mail = $account->mail == $account->init;
   }
 
-  return $is_valid;
+  $has_empty_pass = empty($account->pass);
+
+  if ($valid_mail && $has_empty_pass) {
+    return TRUE;
+  }
+
+  watchdog('guardian', 'User name <em>@username (id:@uid, mail:@mail, init:@init) has a changed password or e-mail address</em>', array(
+    '@username' => $account->name,
+    '@uid' => $account->uid,
+    '@mail' => $account->mail,
+    '@init' => $account->init,
+  ), WATCHDOG_ALERT);
+
+  return FALSE;
 }
 
 /**
@@ -74,7 +107,7 @@ function _guardian_check_valid_data($account) {
  *
  * @see user_logout()
  */
-function _guardian_destroy_guarded_account($account) {
+function _guardian_destroy_session_of_guarded_account($account) {
 
   // Destroy all sessions, saved in the database.
   $session_state = drupal_save_session();
@@ -135,18 +168,56 @@ function guardian_form_user_profile_form_alter(&$form, &$form_state, $form_id) {
     drupal_exit();
   }
 
-  // Alter fields.
-  if (!empty($form['account'])) {
-    foreach (element_get_visible_children($form['account']) as $field) {
-      $form['account'][$field]['#disabled'] = TRUE;
-      $form['account'][$field]['#description'] = t('Disabled by Guardian.');
-    }
-
-    // Deny access to unusable fields.
-    $form['account']['pass']['#access'] = FALSE;
-    $form['account']['current_pass']['#access'] = FALSE;
-    $form['account']['current_pass_required_values']['#access'] = FALSE;
+  // Nothing left to alter.
+  if (empty($form['account'])) {
+    return;
   }
+
+  // Deny access to password fields.
+  $form['account']['pass']['#access'] = FALSE;
+  $form['account']['current_pass']['#access'] = FALSE;
+  $form['account']['current_pass_required_values']['#access'] = FALSE;
+
+  $current_user_is_user1 = (string) $user->uid === '1';
+  $current_profile_is_user1 = (string) $form['#user']->uid === '1';
+
+  // Allow USER1 to change account details of other guarded users.
+  if (!$current_profile_is_user1 && $current_user_is_user1) {
+    drupal_set_message(t('This user is guarded by Guardian.'), 'warning');
+    return;
+  }
+
+  // Disable all visible account elements.
+  foreach (element_get_visible_children($form['account']) as $field) {
+    $form['account'][$field]['#disabled'] = TRUE;
+    $form['account'][$field]['#description'] = filter_xss_admin(variable_get('guardian_description_disabled_element', t('Disabled by Guardian.')));
+  }
+}
+
+function guardian_variable_group_info() {
+  return array(
+    'guardian' => array(
+      'title' => t('Guardian'),
+      'path' => array(
+        'admin/config/system/guardian',
+      ),
+    ),
+  );
+}
+
+/**
+ * Implements hook_variable_info().
+ */
+function guardian_variable_info($options) {
+  $variables['guardian_description_disabled_element'] = array(
+    'type' => 'string',
+    'title' => t('Disabled description', array(), $options),
+    'default' => array('*' => 0),
+    'description' => t('Description of disabled account form elements by Guardian', array(), $options),
+    'localize' => TRUE,
+    'group' => 'guardian',
+  );
+  return $variables;
 }
 
 /**
@@ -154,9 +225,7 @@ function guardian_form_user_profile_form_alter(&$form, &$form_state, $form_id) {
  */
 function guardian_mail($key, &$message, $params) {
   switch ($key) {
-    case 'cron':
-    case 'enable':
-    case 'disable':
+    case 'notification':
       $message['subject'] = $params['subject'];
       $message['body'] = $params['body'];
       break;
@@ -170,25 +239,34 @@ function guardian_mail($key, &$message, $params) {
  */
 function guardian_user_presave(&$edit, $account, $category) {
   if (_guardian_account_is_guarded($account)) {
-    _guardian_cleanup_database_variables();
+    global $user;
 
     $edit['pass'] = '';
-    $edit['mail'] = variable_get('guardian_mail', '');
-    $edit['init'] = variable_get('guardian_mail', '');
-    $edit['status'] = 1;
+
+    $is_user1 = (string) $user->uid !== '1';
+
+    // Allow only User1 to save a new mail address.
+    if ($is_user1 || ((string) $account->uid === (string) $user->uid)) {
+      $guarded_users = _guardian_guarded_users();
+      $guarded_mail = $guarded_users[(string) $account->uid];
+
+      $edit['mail'] = $guarded_mail;
+      $edit['init'] = $guarded_mail;
+    }
   }
 }
 
 /**
  * Implements hook_mail_alter().
+ *
+ * Send metadata with guarded users on password reset.
  */
 function guardian_mail_alter(&$message) {
   _guardian_cleanup_database_variables();
 
   $is_password_reset_mail = ($message['id'] == 'user_password_reset');
-  $is_guardian_mail = ($message['to'] == variable_get('guardian_mail'));
 
-  if ($is_password_reset_mail && $is_guardian_mail) {
+  if ($is_password_reset_mail && in_array($message['to'], _guardian_guarded_users())) {
     _guardian_add_metadata_to_body($message['body']);
   }
 }
@@ -221,8 +299,14 @@ function _guardian_account_is_guarded($account) {
     return FALSE;
   }
 
+  $guarded_users = _guardian_guarded_users();
+
   // Type casting, because uid is not always an integer and can't be a boolean.
-  return (string) $account->uid === '1';
+  if (isset($guarded_users[$account->uid])) {
+    return TRUE;
+  }
+
+  return FALSE;
 }
 
 /**
@@ -242,4 +326,45 @@ function _guardian_cleanup_database_variables() {
     cache_clear_all('variables', 'cache_bootstrap');
     unset($conf['guardian_mail'], $conf['guardian_hours']);
   }
+}
+
+/**
+ * Get all guarded Users by Guardian.
+ *
+ * @return array
+ *   UID as key and e-mail address as value.
+ */
+function _guardian_guarded_users() {
+  $users = &drupal_static(drupal_get_hash_salt());
+
+  if (!isset($users)) {
+    $users = array();
+    foreach (module_implements('guardian_guarded_users') as $module) {
+      $function = $module . '_guardian_guarded_users';
+      $guarded_users = $function();
+      foreach($guarded_users as $uid => $mail) {
+        if (empty($mail) || !is_int($uid) || !valid_email_address($mail)) {
+          unset($guarded_users[$uid]);
+        }
+      }
+
+      $users += $guarded_users;
+    }
+
+    unset($users[0]);
+
+    _guardian_cleanup_database_variables();
+    $users[1] = variable_get('guardian_mail');
+  }
+
+  return $users;
+}
+
+/**
+ * Set default values for a guarded account.
+ */
+function _guardian_account_defaults(stdClass $account, $mail) {
+  $account->pass = '';
+  $account->mail = $mail;
+  $account->init = $mail;
 }
