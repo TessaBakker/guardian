@@ -1,5 +1,8 @@
 services:
-  guardian_event_subscriber:
+  guardian.manager:
+    class: '\Drupal\guardian\GuardianManager'
+  guardian.event_subscriber:
     class: '\Drupal\guardian\EventSubscriber\GuardianSubscriber'
+    arguments: ['@guardian.manager', '@current_user']
     tags:
       - {name: 'event_subscriber'}

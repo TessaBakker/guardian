@@ -3,3 +3,4 @@ type: module
 description: Allows USER 1 login with only password reset.
 core: 8.x
 package: Security
+configure: guardian.settings

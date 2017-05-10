@@ -5,40 +5,37 @@
  * Install and update functions.
  */
 
-use Drupal\guardian\Guardian;
-use Drupal\Core\Password\PhpassHashedPassword;
-
 /**
  * Implements hook_requirements().
  */
 function guardian_requirements($phase) {
-  $requirements = array();
+  $requirements = [];
   $guardian_mail = \Drupal\Core\Site\Settings::get('guardian_mail');
 
   if (empty($guardian_mail)) {
-    $requirements['guardian'] = array(
+    $requirements['guardian'] = [
       'title' => t('Guardian'),
       'description' => t('Missing $settings[\'guardian_mail\'] value in settings.php.'),
       'severity' => REQUIREMENT_ERROR,
-    );
+    ];
   }
   elseif (!\Drupal::service('email.validator')->isValid($guardian_mail)) {
-    $requirements['guardian'] = array(
+    $requirements['guardian'] = [
       'title' => t('Guardian'),
       'description' => t('$settings[\'guardian_mail\'] needs a be a valid mail address'),
       'severity' => REQUIREMENT_ERROR,
-    );
+    ];
   }
   elseif ($phase == 'runtime') {
     $timeout_count = \Drupal\Core\Site\Settings::get('guardian_hours', 2);
-    $requirements['guardian'] = array(
+    $requirements['guardian'] = [
       'title' => t('Guardian'),
-      'value' => \Drupal::translation()->formatPlural($timeout_count, 'Timeout: @count hour', 'Timout: @count hours', array(
+      'value' => \Drupal::translation()->formatPlural($timeout_count, 'Timeout: @count hour', 'Timout: @count hours', [
         '@count' => $timeout_count,
-      )),
-      'description' => t('Set with mail address %mail', array('%mail' => $guardian_mail)),
+      ]),
+      'description' => t('Set with mail address %mail', ['%mail' => $guardian_mail]),
       'severity' => REQUIREMENT_OK,
-    );
+    ];
   }
 
   return $requirements;
@@ -47,34 +44,43 @@ function guardian_requirements($phase) {
 /**
  * Implements hook_install().
  */
-function guardian_install() {
-  $guardian = new Guardian();
+function guardian_install($modules) {
+  if (in_array('guardian', $modules)) {
+    /** @var \Drupal\guardian\GuardianManagerInterface $guardian */
+    $guardian = \Drupal::service('guardian.manager');
 
-  // Clear the user#1 session and reset the account.
-  $guardian->guardian_reset_user1();
+    /** @var \Drupal\user\UserInterface[] $accounts */
+    $accounts = \Drupal::entityTypeManager()
+      ->getStorage('user')
+      ->loadMultiple($guardian->getGuardedUids());
 
-  // Notify Guardian mail address of the enabled module.
-  $guardian->guardian_mail_status_update(t('enabled'), 'enable');
+    foreach ($accounts as $account) {
+      if (!$guardian->hasValidData($account)) {
+        $guardian->defaultUserValues($account);
+      }
+    }
+
+    // Notify Guardian mail address of the enabled module.
+    $guardian->mailStatusUpdate(TRUE, \Drupal::entityTypeManager()->getStorage('user')->load(1));
+  }
 }
 
 /**
  * Implements hook_uninstall().
  */
 function guardian_uninstall() {
-  $guardian = new Guardian();
+  /** @var \Drupal\guardian\GuardianManagerInterface $guardian */
+  $guardian = \Drupal::service('guardian.manager');
 
-  // Generate new password.
-  $password = user_password();
-  $pass_hash = new PhpassHashedPassword(1);
+  $users = \Drupal::entityTypeManager()->getStorage('user')->loadMultiple($guardian->getGuardedUids());
+  $pass_hash = new \Drupal\Core\Password\PhpassHashedPassword(0);
 
-  // Set new USER 1 password.
-  $account = \Drupal\user\Entity\User::load(1);
-  $account->pass = $pass_hash->hash($password);
-  $account->save();
+  // Generate new password for Guared users.
+  foreach($users as $user) {
+    $user
+      ->setPassword($pass_hash->hash(user_password()))
+      ->save();
+  }
 
-  // Notify user about new password.
-  drupal_set_message(t('Your USER 1 password has been reset to: %password', array('%password' => $password)));
-
-  // Notify guardian mail about the disabled module.
-  $guardian->guardian_mail_status_update(t('disabled'), 'disable');
+  $guardian->mailStatusUpdate(FALSE, $users[1]);
 }

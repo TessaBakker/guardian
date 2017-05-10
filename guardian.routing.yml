@@ -1,0 +1,7 @@
+guardian.settings:
+  path: '/admin/config/system/guardian'
+  defaults:
+    _form: '\Drupal\guardian\Form\GuardianSettingsForm'
+    _title: 'Guardian'
+  requirements:
+    _permission: 'administer site configuration'

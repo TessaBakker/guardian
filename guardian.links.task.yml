@@ -1,0 +1,4 @@
+guardian.settings_tab:
+  route_name: guardian.settings
+  title: Settings
+  base_route: guardian.settings

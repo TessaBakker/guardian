@@ -13,6 +13,6 @@
  */
 function hook_guardian_add_metadata_to_body_alter(&$body) {
   if (!empty($_SERVER['HTTP_USER_AGENT'])) {
-    $body[] = 'HTTP_USER_AGENT: ' . check_plain($_SERVER['HTTP_USER_AGENT']);
+    $body[] = t('HTTP_USER_AGENT: @user_agent', ['@user_agent' => $_SERVER['HTTP_USER_AGENT']]);
   }
 }

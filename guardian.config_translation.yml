@@ -1,0 +1,5 @@
+guardian.settings:
+  title: 'Guardian'
+  base_route_name: guardian.settings
+  names:
+    - guardian.settings

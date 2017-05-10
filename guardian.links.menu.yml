@@ -1,0 +1,5 @@
+guardian.settings:
+  title: 'Guardian'
+  description: 'Configure labels and messages'
+  parent: system.admin_config_system
+  route_name: guardian.settings
