@@ -59,7 +59,6 @@ function guardian_install() {
     }
   }
 
-  // Notify Guardian mail address of the enabled module.
   $guardian->mailStatusUpdate(TRUE, \Drupal::entityTypeManager()->getStorage('user')->load(1));
 }
 
@@ -70,7 +69,5 @@ function guardian_uninstall() {
   /** @var \Drupal\guardian\GuardianManagerInterface $guardian */
   $guardian = \Drupal::service('guardian.manager');
 
-  $user = \Drupal::entityTypeManager()->getStorage('user')->load(1);
-
-  $guardian->mailStatusUpdate(FALSE, $user);
+  $guardian->mailStatusUpdate(FALSE, \Drupal::entityTypeManager()->getStorage('user')->load(1));
 }
