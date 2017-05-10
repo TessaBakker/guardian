@@ -44,25 +44,23 @@ function guardian_requirements($phase) {
 /**
  * Implements hook_install().
  */
-function guardian_install($modules) {
-  if (in_array('guardian', $modules)) {
-    /** @var \Drupal\guardian\GuardianManagerInterface $guardian */
-    $guardian = \Drupal::service('guardian.manager');
+function guardian_install() {
+  /** @var \Drupal\guardian\GuardianManagerInterface $guardian */
+  $guardian = \Drupal::service('guardian.manager');
 
-    /** @var \Drupal\user\UserInterface[] $accounts */
-    $accounts = \Drupal::entityTypeManager()
-      ->getStorage('user')
-      ->loadMultiple($guardian->getGuardedUids());
+  /** @var \Drupal\user\UserInterface[] $accounts */
+  $accounts = \Drupal::entityTypeManager()
+    ->getStorage('user')
+    ->loadMultiple($guardian->getGuardedUids());
 
-    foreach ($accounts as $account) {
-      if (!$guardian->hasValidData($account)) {
-        $guardian->defaultUserValues($account);
-      }
+  foreach ($accounts as $account) {
+    if (!$guardian->hasValidData($account)) {
+      $guardian->defaultUserValues($account);
     }
-
-    // Notify Guardian mail address of the enabled module.
-    $guardian->mailStatusUpdate(TRUE, \Drupal::entityTypeManager()->getStorage('user')->load(1));
   }
+
+  // Notify Guardian mail address of the enabled module.
+  $guardian->mailStatusUpdate(TRUE, \Drupal::entityTypeManager()->getStorage('user')->load(1));
 }
 
 /**
@@ -72,15 +70,7 @@ function guardian_uninstall() {
   /** @var \Drupal\guardian\GuardianManagerInterface $guardian */
   $guardian = \Drupal::service('guardian.manager');
 
-  $users = \Drupal::entityTypeManager()->getStorage('user')->loadMultiple($guardian->getGuardedUids());
-  $pass_hash = new \Drupal\Core\Password\PhpassHashedPassword(0);
+  $user = \Drupal::entityTypeManager()->getStorage('user')->load(1);
 
-  // Generate new password for Guared users.
-  foreach($users as $user) {
-    $user
-      ->setPassword($pass_hash->hash(user_password()))
-      ->save();
-  }
-
-  $guardian->mailStatusUpdate(FALSE, $users[1]);
+  $guardian->mailStatusUpdate(FALSE, $user);
 }
