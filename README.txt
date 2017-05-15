@@ -16,10 +16,10 @@ INTRODUCTION
 ------------
 
 Guardian forces specified Users a.k.a. 'guared users' to log in with only
-<code>drush uli</code> or password reset token url. In this way there will be
+`drush uli [uid]` or password reset token url. In this way there will be
 no need to store and share complex passwords within your organization in a
 secure environment. To secure this setup, any account details of the
-'guarded user' will be protected agains changes and if needed restored to its
+'guarded user' will be protected against changes and if needed restored to its
 default state.
 
 
@@ -63,7 +63,7 @@ USAGE
 -----
 * Login as a guarded user can be done in two ways:
   * Ask for a password reset: `/user/password`
-  * Use the Drush command: drush @alias uli [uid]
+  * Use the Drush command: `drush @alias uli [uid]`
      Where alias can be any website alias in `~/.drush/aliases.drushrc.php`
 
 * **Hooks** can be used to define more guared users than only uid 1. Or add
@@ -92,19 +92,16 @@ A: Create a mail group and use that mail address, add as many
 
 Q: Is it safe to send a password reset to your e-mail?
 
-A: It is safer than writing down your USER 1 password for your temporary intern.
+A: It is safer than writing down your passwords for your temporary intern.
 
 Q: What if someone changes the the password?
 
-A: The USER 1 profile can only be edited by USER 1. And could it happen that
-   someone changed the password in any other way, a mail will be send on every
-   cron to the preferred mail address, USER 1 account details will be fixed and
-   any USER 1 session will be terminated.
+A: On cron every guarded user will be checked, if something has changed the
+   account will be reset to it defaults.
 
-Q: I didn't touch the site for 2 hours and suddenly I needed to login again,
-   is this normal?
+Q: I didn't touch the site for 2 hours and now I have to log in again?
 
-A: Yes, after 2 hours of inactivity USER 1 sessions will be terminated.
+A: Yes, after 2 hours of inactivity guarded user sessions will be terminated.
    This can be changed by adding `$settings['guardian_hours']` in `settings.php`
 
 
