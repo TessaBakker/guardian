@@ -15,14 +15,14 @@ function guardian_requirements($phase) {
   if (empty($guardian_mail)) {
     $requirements['guardian'] = [
       'title' => t('Guardian'),
-      'description' => t('Missing $settings[\'guardian_mail\'] value in settings.php.'),
+      'description' => t('Missing <code>$settings[\'guardian_mail\']</code> value in settings.php.'),
       'severity' => REQUIREMENT_ERROR,
     ];
   }
   elseif (!\Drupal::service('email.validator')->isValid($guardian_mail)) {
     $requirements['guardian'] = [
       'title' => t('Guardian'),
-      'description' => t('$settings[\'guardian_mail\'] needs a be a valid mail address'),
+      'description' => t('<code>$settings[\'guardian_mail\']</code> needs a be a valid mail address'),
       'severity' => REQUIREMENT_ERROR,
     ];
   }
@@ -53,13 +53,13 @@ function guardian_install() {
     ->getStorage('user')
     ->loadMultiple($guardian->getGuardedUids());
 
+  $guardian->notifyModuleState(TRUE);
+
   foreach ($accounts as $account) {
     if (!$guardian->hasValidData($account)) {
-      $guardian->defaultUserValues($account);
+      $account->save();
     }
   }
-
-  $guardian->mailStatusUpdate(TRUE, \Drupal::entityTypeManager()->getStorage('user')->load(1));
 }
 
 /**
@@ -69,5 +69,5 @@ function guardian_uninstall() {
   /** @var \Drupal\guardian\GuardianManagerInterface $guardian */
   $guardian = \Drupal::service('guardian.manager');
 
-  $guardian->mailStatusUpdate(FALSE, \Drupal::entityTypeManager()->getStorage('user')->load(1));
+  $guardian->notifyModuleState(FALSE);
 }

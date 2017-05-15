@@ -1,6 +1,6 @@
 name: Guardian
 type: module
-description: Allows USER 1 login with only password reset.
+description: Requires users to log in with only password reset or drush uli.
 core: 8.x
 package: Security
 configure: guardian.settings

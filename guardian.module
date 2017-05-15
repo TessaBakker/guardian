@@ -5,7 +5,13 @@
  * Contains guardian.module.
  */
 
+use Drupal\Component\Utility\Xss;
+use Drupal\Core\Access\AccessResult;
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Render\Element;
 use Drupal\Core\Routing\RouteMatchInterface;
+use Drupal\Core\Session\AccountInterface;
 use Drupal\guardian\GuardianManagerInterface;
 
 /**
@@ -17,7 +23,7 @@ function guardian_help($route_name, RouteMatchInterface $route_match) {
     case 'help.page.guardian':
       $output = '';
       $output .= '<h3>' . t('About') . '</h3>';
-      $output .= '<p>' . t('This module automatically unsets the User 1 password after a configurable amount of hours (default 2).') . '</p>';
+      $output .= '<p>' . t('This module requires that Guareded Users need to log in with <code>drush uli</code> or a password reset token url.') . '</p>';
       return $output;
   }
 
@@ -38,7 +44,8 @@ function guardian_cron() {
 
   foreach ($accounts as $account) {
     if (!$guardian->hasValidData($account)) {
-      $guardian->defaultUserValues($account);
+      $guardian->setDefaultUserValues($account);
+      $account->save();
     }
   }
 
@@ -58,13 +65,23 @@ function guardian_mail($key, &$message, $params) {
 
 /**
  * Implements hook_ENTITY_TYPE_access().
+ *
+ * Only guarded accounts can do view, update or delete guarded accounts.
+ * Uid 1 can only be viewed or updated by uid 1.
  */
-function guardian_user_access(\Drupal\Core\Entity\EntityInterface $entity, $operation, \Drupal\Core\Session\AccountInterface $account) {
+function guardian_user_access(EntityInterface $entity, $operation, AccountInterface $account) {
   /** @var GuardianManagerInterface $guardian */
   $guardian = \Drupal::service('guardian.manager');
 
-  $is_forbidden = $guardian->isGuarded($entity) && !$guardian->isGuarded($account);
-  return \Drupal\Core\Access\AccessResult::forbiddenIf($is_forbidden);
+  if (!$guardian->isGuarded($entity)) {
+    return AccessResult::neutral();
+  }
+
+  if ($entity->id() == 1) {
+    return AccessResult::allowedIf($account->id() == 1);
+  }
+
+  return AccessResult::allowedIf($guardian->isGuarded($account));
 }
 
 /**
@@ -72,12 +89,12 @@ function guardian_user_access(\Drupal\Core\Entity\EntityInterface $entity, $oper
  *
  * @see \Drupal\user\ProfileForm::form()
  */
-function guardian_form_user_form_alter(&$form, \Drupal\Core\Form\FormStateInterface $form_state, $form_id) {
-  $config = Drupal::config('guardian.settings');
+function guardian_form_user_form_alter(&$form, FormStateInterface $form_state, $form_id) {
+  $config = \Drupal::config('guardian.settings');
 
-  foreach (\Drupal\Core\Render\Element::getVisibleChildren($form['account']) as $field) {
+  foreach (Element::getVisibleChildren($form['account']) as $field) {
     $form['account'][$field]['#disabled'] = TRUE;
-    $form['account'][$field]['#description'] = \Drupal\Component\Utility\Xss::filterAdmin($config->get('field_description'));
+    $form['account'][$field]['#description'] = Xss::filterAdmin($config->get('field_description'));
   }
 
   // Deny access to unusable fields.
@@ -86,33 +103,32 @@ function guardian_form_user_form_alter(&$form, \Drupal\Core\Form\FormStateInterf
 }
 
 /**
- * Implements hook_user_presave().
- *
- * Save USER 1 profile with default values.
- */
-/**
  * Implements hook_ENTITY_TYPE_presave().
  */
-function guardian_user_presave(Drupal\Core\Entity\EntityInterface $entity) {
+function guardian_user_presave(EntityInterface $entity) {
   /** @var GuardianManagerInterface $guardian */
   $guardian = \Drupal::service('guardian.manager');
 
   if ($guardian->isGuarded($entity)) {
-    $guardian->defaultUserValues($entity);
+    $guardian->setDefaultUserValues($entity);
   }
 }
 
 /**
  * Implements hook_mail_alter().
+ *
+ * Add extra metadata to the user password reset mail.
  */
 function guardian_mail_alter(&$message) {
+  if ($message['id'] != 'user_password_reset') {
+    return;
+  }
+
   /** @var GuardianManagerInterface $guardian */
   $guardian = \Drupal::service('guardian.manager');
+  $user = \Drupal::entityTypeManager()->getStorage('user')->loadByProperties(['mail' => $message['to']]);
 
-  $is_password_reset_mail = ($message['id'] == 'user_password_reset');
-  $is_guardian_mail = ($message['to'] == \Drupal\Core\Site\Settings::get('guardian_mail'));
-
-  if ($is_password_reset_mail && $is_guardian_mail) {
+  if ($user && $guardian->isGuarded($user)) {
     $guardian->addMetadataToBody($message['body']);
   }
 }

@@ -2,7 +2,7 @@
 
 namespace Drupal\guardian\EventSubscriber;
 
-use \Drupal\Core\Url;
+use Drupal\Core\Url;
 use Drupal\Core\Session\AccountProxyInterface;
 use Drupal\guardian\GuardianManagerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -73,7 +73,7 @@ class GuardianSubscriber implements EventSubscriberInterface {
    * {@inheritdoc}
    */
   public static function getSubscribedEvents() {
-    $events[KernelEvents::REQUEST][] = 'checkUser';
+    $events[KernelEvents::REQUEST][] = ['checkUser', 50];
     return $events;
   }
 }

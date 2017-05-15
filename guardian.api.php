@@ -8,8 +8,8 @@
 /**
  * Alter the Guardian mail metadata, that will be append to the body text.
  *
- * @param array $body
- *  Content of mail body.
+ * @param string[] $body
+ *   Content of mail body.
  */
 function hook_guardian_add_metadata_to_body_alter(&$body) {
   if (!empty($_SERVER['HTTP_USER_AGENT'])) {

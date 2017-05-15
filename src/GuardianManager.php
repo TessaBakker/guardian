@@ -4,27 +4,30 @@ namespace Drupal\guardian;
 
 use Drupal\Core\Logger\LoggerChannelTrait;
 use Drupal\Core\Session\AccountInterface;
+use Drupal\Core\Site\Settings;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
 use Drupal\user\UserInterface;
 
 /**
- * Class Guardian
+ * Class GuardianManager
  * @package Drupal\guardian
  */
 final class GuardianManager implements GuardianManagerInterface {
   use StringTranslationTrait, LoggerChannelTrait;
 
   /**
-   * Send a status message to the Guardian mail address.
+   * {@inheritdoc}
    */
-  public function mailStatusUpdate($status, AccountInterface $account) {
+  public function notifyModuleState($isEnabled) {
     $site = \Drupal::config('system.site')->get('name');
 
-    $subject = $this->t('Guardian has been disabled for @site', [
-      '@site' => $site,
-    ]);
-    if ($status) {
+    if ($isEnabled) {
       $subject = $this->t('Guardian has been enabled for @site', [
+        '@site' => $site,
+      ]);
+    }
+    else {
+      $subject = $this->t('Guardian has been disabled for @site', [
         '@site' => $site,
       ]);
     }
@@ -38,32 +41,30 @@ final class GuardianManager implements GuardianManagerInterface {
       'subject' => $subject,
     ];
 
-    $guardian_mail = \Drupal\Core\Site\Settings::get('guardian_mail');
+    $guardian_mail = Settings::get('guardian_mail');
+    $user = \Drupal::entityTypeManager()->getStorage('user')->load(1);
 
     /** @var \Drupal\Core\Mail\MailManagerInterface $mailManager */
     $mailManager = \Drupal::service('plugin.manager.mail');
-    $mailManager->mail('guardian', 'notification', $guardian_mail, $account->getPreferredLangcode(), $params, NULL, TRUE);
+    $mailManager->mail('guardian', 'notification', $guardian_mail, $user->getPreferredLangcode(), $params, NULL, TRUE);
   }
 
   /**
-   * Set the default Guardian data for user.
+   * {@inheritdoc}
    */
-  public function defaultUserValues(UserInterface $user) {
+  public function setDefaultUserValues(UserInterface $user) {
     $guarded_users = $this->getGuardedUsers();
 
     if (isset($guarded_users[$user->id()])) {
       $user->get('init')->setValue($guarded_users[$user->id()]);
       $user
         ->setEmail($guarded_users[$user->id()])
-        ->setPassword('');
+        ->setPassword(NULL);
     }
   }
 
   /**
-   * Helper to add metadata within the body of an e-mail.
-   *
-   * @param array $body
-   *   Message of mail.
+   * {@inheritdoc}
    */
   public function addMetadataToBody(&$body) {
     $body[] = $this->t('Client IP: @ip', [
@@ -81,7 +82,7 @@ final class GuardianManager implements GuardianManagerInterface {
   }
 
   /**
-   * Destroy guarded user sessions.
+   * {@inheritdoc}
    */
   public function destroySession(AccountInterface $account) {
     $current_user = \Drupal::currentUser();
@@ -93,8 +94,11 @@ final class GuardianManager implements GuardianManagerInterface {
     }
   }
 
+  /**
+   * {@inheritdoc}
+   */
   public function showLogoutMessage() {
-    $hours = \Drupal\Core\Site\Settings::get('guardian_hours', 2);
+    $hours = Settings::get('guardian_hours', 2);
     $message = $this->formatPlural($hours,
       'Your last access was more than 1 hour ago, please login again.',
       'Your last access was more than @count hours ago, please login again.', ['@count' => $hours]);
@@ -102,16 +106,13 @@ final class GuardianManager implements GuardianManagerInterface {
   }
 
   /**
-   * Check for valid Guardian user data.
-   *
-   * @param \Drupal\Core\Session\AccountInterface $user
-   * @return bool
+   * {@inheritdoc}
    */
   public function hasValidData(AccountInterface $account) {
     /** @var UserInterface $user */
     $user = \Drupal::entityTypeManager()->getStorage('user')->load($account->id());
 
-    if ($user && empty($user->getPassword())) {
+    if ($user && is_null($user->getPassword())) {
       if ($user->getEmail() == $user->getInitialEmail()) {
         $guarded_users = $this->getGuardedUsers();
 
@@ -131,18 +132,15 @@ final class GuardianManager implements GuardianManagerInterface {
   }
 
   /**
-   * Check for valid session lifetime.
+   * {@inheritdoc}
    */
   public function hasValidSession(AccountInterface $account) {
-    return $account->getLastAccessedTime() > (\Drupal::time()
-          ->getRequestTime() - 3600 * \Drupal\Core\Site\Settings::get('guardian_hours', 2));
+    $guardian_seconds = 3600 * Settings::get('guardian_hours', 2);
+    return $account->getLastAccessedTime() > (\Drupal::time()->getRequestTime() - $guardian_seconds);
   }
 
   /**
-   * Checks if account is guarded with Guardian.
-   *
-   * @param \Drupal\Core\Session\AccountInterface $account
-   * @return bool
+   * {@inheritdoc}
    */
   public function isGuarded(AccountInterface $account) {
     if ($account->isAnonymous()) {
@@ -154,10 +152,16 @@ final class GuardianManager implements GuardianManagerInterface {
     return isset($guarded_users[$account->id()]);
   }
 
+  /**
+   * {@inheritdoc}
+   */
   public function getGuardedUids() {
     return array_keys($this->getGuardedUsers());
   }
 
+  /**
+   * {@inheritdoc}
+   */
   private function getGuardedUsers() {
     static $users = [];
 
@@ -178,9 +182,10 @@ final class GuardianManager implements GuardianManagerInterface {
         $users += $guarded_users;
       }
 
-      $users[1] = \Drupal\Core\Site\Settings::get('guardian_mail');
+      $users[1] = Settings::get('guardian_mail');
     }
 
     return $users;
   }
+
 }
