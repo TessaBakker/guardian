@@ -15,7 +15,7 @@ CONTENTS OF THIS FILE
 INTRODUCTION
 ------------
 
-Guardian forces specified Users a.k.a. 'guared users' to log in with only
+Guardian forces specified Users a.k.a. 'guarded users' to log in with only
 `drush uli [uid]` or password reset token url. In this way there will be
 no need to store and share complex passwords within your organization in a
 secure environment. To secure this setup, any account details of the
