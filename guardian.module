@@ -77,16 +77,12 @@ function _guardian_account_has_valid_session($account) {
 function _guardian_account_has_valid_data($account) {
   _guardian_cleanup_database_variables();
 
-  if ((string) $account->uid === '1') {
-    $guardian_mail = variable_get('guardian_mail', FALSE);
-    $valid_mail = $account->init == $guardian_mail;
-    $valid_mail = $valid_mail && $account->mail == $guardian_mail;
-  }
-  else {
-    $valid_mail = $account->mail == $account->init;
-  }
-
   $has_empty_pass = empty($account->pass);
+  $valid_mail = $account->mail == $account->init;
+
+  if ((string) $account->uid === '1') {
+    $valid_mail = $valid_mail && $account->mail == variable_get('guardian_mail', FALSE);;
+  }
 
   if ($valid_mail && $has_empty_pass) {
     return TRUE;
@@ -108,15 +104,16 @@ function _guardian_account_has_valid_data($account) {
  * @see user_logout()
  */
 function _guardian_destroy_session_of_guarded_account($account) {
+  global $user;
 
-  // Destroy all sessions, saved in the database.
+  // Temporary allow writing of session, for destroying all sessions of user X.
   $session_state = drupal_save_session();
   drupal_save_session(TRUE);
   drupal_session_destroy_uid($account->uid);
   drupal_save_session($session_state);
 
-  // Destroy session of active guarded user.
-  if (_guardian_account_is_guarded($account)) {
+  // Destroy session of active user.
+  if ($account->uid == $user->uid) {
     watchdog('guardian', 'Session closed for %name.', array('%name' => $account->name));
 
     module_invoke_all('user_logout', $account);
@@ -291,22 +288,17 @@ function _guardian_add_metadata_to_body(array &$body) {
 /**
  * Checks if account is guarded.
  */
-function _guardian_account_is_guarded($account) {
+function _guardian_account_is_guarded(stdClass $account) {
 
   // The uid might not be available at this point, for example in a user
-  // migration.
-  if (!isset($account->uid)) {
+  // migration. Or the user is anonymous.
+  if (empty($account->uid)) {
     return FALSE;
   }
 
   $guarded_users = _guardian_guarded_users();
 
-  // Type casting, because uid is not always an integer and can't be a boolean.
-  if (isset($guarded_users[$account->uid])) {
-    return TRUE;
-  }
-
-  return FALSE;
+  return isset($guarded_users[$account->uid]);
 }
 
 /**
@@ -335,7 +327,7 @@ function _guardian_cleanup_database_variables() {
  *   UID as key and e-mail address as value.
  */
 function _guardian_guarded_users() {
-  $users = &drupal_static(drupal_get_hash_salt());
+  static $users = array();
 
   if (!isset($users)) {
     $users = array();
@@ -343,15 +335,13 @@ function _guardian_guarded_users() {
       $function = $module . '_guardian_guarded_users';
       $guarded_users = $function();
       foreach($guarded_users as $uid => $mail) {
-        if (empty($mail) || !is_int($uid) || !valid_email_address($mail)) {
+        if (empty($mail) || !is_int($uid) || $uid < 2 || !valid_email_address($mail)) {
           unset($guarded_users[$uid]);
         }
       }
 
       $users += $guarded_users;
     }
-
-    unset($users[0]);
 
     _guardian_cleanup_database_variables();
     $users[1] = variable_get('guardian_mail');

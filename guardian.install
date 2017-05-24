@@ -149,7 +149,5 @@ function _guardian_mail_status_update($status, $language) {
   _guardian_cleanup_database_variables();
   $guardian_mail = variable_get('guardian_mail');
 
-  if (valid_email_address($guardian_mail)) {
-    drupal_mail('guardian', 'notification', $guardian_mail, $language, $params, variable_get('site_mail'));
-  }
+  drupal_mail('guardian', 'notification', $guardian_mail, $language, $params, variable_get('site_mail'));
 }
