@@ -90,16 +90,17 @@ function guardian_user_access(EntityInterface $entity, $operation, AccountInterf
  * @see \Drupal\user\ProfileForm::form()
  */
 function guardian_form_user_form_alter(&$form, FormStateInterface $form_state, $form_id) {
-  $storage = $form_state->getStorage();
+  /** @var \Drupal\user\UserInterface $account */
+  $account = $form_state->getFormObject()->getEntity();
 
-  if (!isset($storage['user'])) {
+  if ($account->isNew()) {
     return;
   }
 
   /** @var GuardianManagerInterface $guardian */
   $guardian = \Drupal::service('guardian.manager');
 
-  if (!$guardian->isGuarded($storage['user'])) {
+  if (!$guardian->isGuarded($account)) {
     return;
   }
 
