@@ -54,7 +54,7 @@ DEFAULT SETUP
   terminated in time. The setting itself can be changed by adding
   `$settings['guardian_hours'] = [number];` in your project settings file.
 
-* **Account description label** can be changed withing the config
+* **Account description label** can be changed within the config
   `admin/config/system/guardian` to nofity guarded users why they can't change
   their account details like 'username', 'password', 'e-mail address and roles'.
 

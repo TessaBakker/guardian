@@ -5,29 +5,31 @@
  * Install and update functions.
  */
 
+use \Drupal\Core\Site\Settings;
+
 /**
  * Implements hook_requirements().
  */
 function guardian_requirements($phase) {
   $requirements = [];
-  $guardian_mail = \Drupal\Core\Site\Settings::get('guardian_mail');
+  $guardian_mail = Settings::get('guardian_mail');
 
   if (empty($guardian_mail)) {
     $requirements['guardian'] = [
       'title' => t('Guardian'),
-      'description' => t('Missing <code>$settings[\'guardian_mail\']</code> value in settings.php.'),
+      'description' => t('Missing <code>$settings["guardian_mail"]</code> value in settings.php.'),
       'severity' => REQUIREMENT_ERROR,
     ];
   }
   elseif (!\Drupal::service('email.validator')->isValid($guardian_mail)) {
     $requirements['guardian'] = [
       'title' => t('Guardian'),
-      'description' => t('<code>$settings[\'guardian_mail\']</code> needs a be a valid mail address'),
+      'description' => t('<code>$settings["guardian_mail"]</code> needs a be a valid mail address'),
       'severity' => REQUIREMENT_ERROR,
     ];
   }
   elseif ($phase == 'runtime') {
-    $timeout_count = \Drupal\Core\Site\Settings::get('guardian_hours', 2);
+    $timeout_count = Settings::get('guardian_hours', 2);
     $requirements['guardian'] = [
       'title' => t('Guardian'),
       'value' => \Drupal::translation()->formatPlural($timeout_count, 'Timeout: @count hour', 'Timout: @count hours', [

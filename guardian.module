@@ -12,7 +12,6 @@ use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Render\Element;
 use Drupal\Core\Routing\RouteMatchInterface;
 use Drupal\Core\Session\AccountInterface;
-use Drupal\guardian\GuardianManagerInterface;
 
 /**
  * Implements hook_help().
@@ -34,7 +33,7 @@ function guardian_help($route_name, RouteMatchInterface $route_match) {
  * Implements hook_cron().
  */
 function guardian_cron() {
-  /** @var GuardianManagerInterface $guardian */
+  /** @var \Drupal\guardian\GuardianManagerInterface $guardian */
   $guardian = \Drupal::service('guardian.manager');
 
   /** @var \Drupal\user\UserInterface[] $accounts */
@@ -70,7 +69,7 @@ function guardian_mail($key, &$message, $params) {
  * Uid 1 can only be viewed or updated by uid 1.
  */
 function guardian_user_access(EntityInterface $entity, $operation, AccountInterface $account) {
-  /** @var GuardianManagerInterface $guardian */
+  /** @var \Drupal\guardian\GuardianManagerInterface $guardian */
   $guardian = \Drupal::service('guardian.manager');
 
   if (!$guardian->isGuarded($entity)) {
@@ -97,7 +96,7 @@ function guardian_form_user_form_alter(&$form, FormStateInterface $form_state, $
     return;
   }
 
-  /** @var GuardianManagerInterface $guardian */
+  /** @var \Drupal\guardian\GuardianManagerInterface $guardian */
   $guardian = \Drupal::service('guardian.manager');
 
   if (!$guardian->isGuarded($account)) {
@@ -120,7 +119,7 @@ function guardian_form_user_form_alter(&$form, FormStateInterface $form_state, $
  * Implements hook_ENTITY_TYPE_presave().
  */
 function guardian_user_presave(EntityInterface $entity) {
-  /** @var GuardianManagerInterface $guardian */
+  /** @var \Drupal\guardian\GuardianManagerInterface $guardian */
   $guardian = \Drupal::service('guardian.manager');
 
   if ($guardian->isGuarded($entity)) {
@@ -133,14 +132,16 @@ function guardian_user_presave(EntityInterface $entity) {
  *
  * Add extra metadata to the user password reset mail.
  */
-function guardian_mail_alter(&$message) {
+function guardian_mail_alter(array &$message) {
   if ($message['id'] != 'user_password_reset') {
     return;
   }
 
-  /** @var GuardianManagerInterface $guardian */
+  /** @var \Drupal\guardian\GuardianManagerInterface $guardian */
   $guardian = \Drupal::service('guardian.manager');
-  $user = \Drupal::entityTypeManager()->getStorage('user')->loadByProperties(['mail' => $message['to']]);
+  $user = \Drupal::entityTypeManager()
+    ->getStorage('user')
+    ->loadByProperties(['mail' => $message['to']]);
 
   if ($user && $guardian->isGuarded($user)) {
     $guardian->addMetadataToBody($message['body']);

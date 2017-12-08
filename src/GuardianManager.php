@@ -9,10 +9,12 @@ use Drupal\Core\StringTranslation\StringTranslationTrait;
 use Drupal\user\UserInterface;
 
 /**
- * Class GuardianManager
+ * Class GuardianManager.
+ *
  * @package Drupal\guardian
  */
 final class GuardianManager implements GuardianManagerInterface {
+
   use StringTranslationTrait, LoggerChannelTrait;
 
   /**
@@ -66,12 +68,12 @@ final class GuardianManager implements GuardianManagerInterface {
   /**
    * {@inheritdoc}
    */
-  public function addMetadataToBody(&$body) {
+  public function addMetadataToBody(array &$body) {
     $body[] = $this->t('Client IP: @ip', [
-      '@ip' => \Drupal::request()->getClientIp()
+      '@ip' => \Drupal::request()->getClientIp(),
     ]);
     $body[] = $this->t('Host name: @host', [
-      '@host' => \Drupal::request()->getHost()
+      '@host' => \Drupal::request()->getHost(),
     ]);
 
     if (PHP_SAPI === 'cli') {
@@ -110,7 +112,9 @@ final class GuardianManager implements GuardianManagerInterface {
    */
   public function hasValidData(AccountInterface $account) {
     /** @var UserInterface $user */
-    $user = \Drupal::entityTypeManager()->getStorage('user')->load($account->id());
+    $user = \Drupal::entityTypeManager()
+      ->getStorage('user')
+      ->load($account->id());
 
     if ($user && is_null($user->getPassword())) {
       if ($user->getEmail() == $user->getInitialEmail()) {
@@ -122,12 +126,14 @@ final class GuardianManager implements GuardianManagerInterface {
       }
     }
 
-    $this->getLogger('guardian')->alert('User name <em>@username (id:@uid, mail:@mail, init:@init) has a changed password or e-mail address</em>', [
-      '@username' => $user->getAccountName(),
-      '@uid' => $user->id(),
-      '@mail' => $user->getEmail(),
-      '@init' => $user->getInitialEmail(),
-    ]);
+    $this->getLogger('guardian')
+      ->alert('User name <em>@username (id:@uid, mail:@mail, init:@init) has a changed password or e-mail address</em>', [
+        '@username' => $user->getAccountName(),
+        '@uid' => $user->id(),
+        '@mail' => $user->getEmail(),
+        '@init' => $user->getInitialEmail(),
+      ]);
+
     return FALSE;
   }
 
@@ -136,7 +142,8 @@ final class GuardianManager implements GuardianManagerInterface {
    */
   public function hasValidSession(AccountInterface $account) {
     $guardian_seconds = 3600 * Settings::get('guardian_hours', 2);
-    return $account->getLastAccessedTime() > (\Drupal::time()->getRequestTime() - $guardian_seconds);
+    return $account->getLastAccessedTime() > (\Drupal::time()
+          ->getRequestTime() - $guardian_seconds);
   }
 
   /**

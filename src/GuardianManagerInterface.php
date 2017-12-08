@@ -6,7 +6,8 @@ use Drupal\Core\Session\AccountInterface;
 use Drupal\user\UserInterface;
 
 /**
- * Interface GuardianManagerInterface
+ * Interface GuardianManagerInterface.
+ *
  * @package Drupal\guardian
  */
 interface GuardianManagerInterface {
@@ -15,7 +16,7 @@ interface GuardianManagerInterface {
    * Set default Guarded User values.
    *
    * @param \Drupal\user\UserInterface $user
-   * @return void
+   *  User object to set with default values.
    */
   public function setDefaultUserValues(UserInterface $user);
 
@@ -24,7 +25,9 @@ interface GuardianManagerInterface {
    *
    * @param AccountInterface $account
    *   Account object.
+   *
    * @return bool
+   *   True for valid, false for invalid.
    */
   public function hasValidData(AccountInterface $account);
 
@@ -33,7 +36,9 @@ interface GuardianManagerInterface {
    *
    * @param AccountInterface $account
    *   Account object.
+   *
    * @return bool
+   *   True for valid, false for invalid.
    */
   public function hasValidSession(AccountInterface $account);
 
@@ -42,7 +47,9 @@ interface GuardianManagerInterface {
    *
    * @param AccountInterface $account
    *   Account object.
+   *
    * @return bool
+   *   True for guarded, false for un-guarded.
    */
   public function isGuarded(AccountInterface $account);
 
@@ -51,29 +58,25 @@ interface GuardianManagerInterface {
    *
    * @param AccountInterface $account
    *   Account object.
-   * @return void
    */
   public function destroySession(AccountInterface $account);
 
   /**
    * Notify the current state of the module.
    *
-   * @param boolean $isEnabled
+   * @param bool $isEnabled
    *   If the module is enabled or not.
-   * @return void
    */
   public function notifyModuleState($isEnabled);
 
   /**
    * @param string[] $body
    *   Array of messages to include in the body of an e-mail.
-   * @return void
    */
-  public function addMetadataToBody(&$body);
+  public function addMetadataToBody(array &$body);
 
   /**
    * Shows the logout message when Guardian destroys a current user session.
-   * @return void
    */
   public function showLogoutMessage();
 
@@ -84,4 +87,5 @@ interface GuardianManagerInterface {
    *   List of uids.
    */
   public function getGuardedUids();
+
 }

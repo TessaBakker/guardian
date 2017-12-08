@@ -11,7 +11,8 @@ use Symfony\Component\HttpKernel\Event\GetResponseEvent;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 
 /**
- * Class guardianSubscriber
+ * Class guardianSubscriber.
+ *
  * @package Drupal\guardian\EventSubscriber
  */
 class GuardianSubscriber implements EventSubscriberInterface {
@@ -23,7 +24,7 @@ class GuardianSubscriber implements EventSubscriberInterface {
   /**
    * GuardianSubscriber constructor.
    */
-  function __construct(GuardianManagerInterface $guardianManager, AccountProxyInterface $accountProxy) {
+  public function __construct(GuardianManagerInterface $guardianManager, AccountProxyInterface $accountProxy) {
     $this->guardianManager = $guardianManager;
     $this->currentUser = $accountProxy;
   }
@@ -63,7 +64,10 @@ class GuardianSubscriber implements EventSubscriberInterface {
     $this->guardianManager->destroySession($this->currentUser);
 
     $password_url = Url::fromRoute('user.pass');
-    $password_url->setRouteParameters(['destination' => $current_path->getInternalPath(), 'guardian_redirect' => 1]);
+    $password_url->setRouteParameters([
+      'destination' => $current_path->getInternalPath(),
+      'guardian_redirect' => 1,
+    ]);
 
     $response = new RedirectResponse($password_url->toString());
     $event->setResponse($response);
@@ -76,4 +80,5 @@ class GuardianSubscriber implements EventSubscriberInterface {
     $events[KernelEvents::REQUEST][] = ['checkUser', 50];
     return $events;
   }
+
 }
