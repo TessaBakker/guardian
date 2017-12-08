@@ -5,7 +5,7 @@
  * Install and update functions.
  */
 
-use \Drupal\Core\Site\Settings;
+use Drupal\Core\Site\Settings;
 
 /**
  * Implements hook_requirements().
@@ -32,9 +32,10 @@ function guardian_requirements($phase) {
     $timeout_count = Settings::get('guardian_hours', 2);
     $requirements['guardian'] = [
       'title' => t('Guardian'),
-      'value' => \Drupal::translation()->formatPlural($timeout_count, 'Timeout: @count hour', 'Timout: @count hours', [
-        '@count' => $timeout_count,
-      ]),
+      'value' => \Drupal::translation()
+        ->formatPlural($timeout_count, 'Timeout: @count hour', 'Timout: @count hours', [
+          '@count' => $timeout_count,
+        ]),
       'description' => t('Set with mail address %mail', ['%mail' => $guardian_mail]),
       'severity' => REQUIREMENT_OK,
     ];

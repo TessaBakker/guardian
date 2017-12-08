@@ -111,7 +111,7 @@ final class GuardianManager implements GuardianManagerInterface {
    * {@inheritdoc}
    */
   public function hasValidData(AccountInterface $account) {
-    /** @var UserInterface $user */
+    /** @var \Drupal\user\UserInterface $user */
     $user = \Drupal::entityTypeManager()
       ->getStorage('user')
       ->load($account->id());
@@ -142,8 +142,8 @@ final class GuardianManager implements GuardianManagerInterface {
    */
   public function hasValidSession(AccountInterface $account) {
     $guardian_seconds = 3600 * Settings::get('guardian_hours', 2);
-    return $account->getLastAccessedTime() > (\Drupal::time()
-          ->getRequestTime() - $guardian_seconds);
+    $timeout = \Drupal::time()->getRequestTime() - $guardian_seconds;
+    return $account->getLastAccessedTime() > $timeout;
   }
 
   /**

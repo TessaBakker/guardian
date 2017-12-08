@@ -16,14 +16,14 @@ interface GuardianManagerInterface {
    * Set default Guarded User values.
    *
    * @param \Drupal\user\UserInterface $user
-   *  User object to set with default values.
+   *   User object to set with default values.
    */
   public function setDefaultUserValues(UserInterface $user);
 
   /**
    * Check if Account has correct mail, init, pass values.
    *
-   * @param AccountInterface $account
+   * @param \Drupal\Core\Session\AccountInterface $account
    *   Account object.
    *
    * @return bool
@@ -34,7 +34,7 @@ interface GuardianManagerInterface {
   /**
    * Check if Account has been active for minimum period.
    *
-   * @param AccountInterface $account
+   * @param \Drupal\Core\Session\AccountInterface $account
    *   Account object.
    *
    * @return bool
@@ -45,7 +45,7 @@ interface GuardianManagerInterface {
   /**
    * Check if Account is a Guarded User.
    *
-   * @param AccountInterface $account
+   * @param \Drupal\Core\Session\AccountInterface $account
    *   Account object.
    *
    * @return bool
@@ -56,7 +56,7 @@ interface GuardianManagerInterface {
   /**
    * Destroy all sessions of given Account.
    *
-   * @param AccountInterface $account
+   * @param \Drupal\Core\Session\AccountInterface $account
    *   Account object.
    */
   public function destroySession(AccountInterface $account);
@@ -70,6 +70,8 @@ interface GuardianManagerInterface {
   public function notifyModuleState($isEnabled);
 
   /**
+   * Add meta data to the body of the mail.
+   *
    * @param string[] $body
    *   Array of messages to include in the body of an e-mail.
    */
