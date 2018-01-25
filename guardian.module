@@ -143,7 +143,7 @@ function guardian_mail_alter(array &$message) {
     ->getStorage('user')
     ->loadByProperties(['mail' => $message['to']]);
 
-  if ($user && $guardian->isGuarded($user)) {
+  if ($user && $guardian->isGuarded(reset($user))) {
     $guardian->addMetadataToBody($message['body']);
   }
 }
