@@ -139,11 +139,11 @@ function guardian_mail_alter(array &$message) {
 
   /** @var \Drupal\guardian\GuardianManagerInterface $guardian */
   $guardian = \Drupal::service('guardian.manager');
-  $user = \Drupal::entityTypeManager()
+  $users = \Drupal::entityTypeManager()
     ->getStorage('user')
     ->loadByProperties(['mail' => $message['to']]);
 
-  if ($user && $guardian->isGuarded(reset($user))) {
+  if ($users && $guardian->isGuarded(reset($users))) {
     $guardian->addMetadataToBody($message['body']);
   }
 }
