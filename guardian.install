@@ -2,7 +2,7 @@
 
 /**
  * @file
- * Install and update functions.
+ * Install, update and uninstall functions.
  */
 
 use Drupal\Core\Site\Settings;
@@ -33,7 +33,7 @@ function guardian_requirements($phase) {
     $requirements['guardian'] = [
       'title' => t('Guardian'),
       'value' => \Drupal::translation()
-        ->formatPlural($timeout_count, 'Timeout: @count hour', 'Timout: @count hours', [
+        ->formatPlural($timeout_count, 'Timeout: @count hour', 'Timeout: @count hours', [
           '@count' => $timeout_count,
         ]),
       'description' => t('Set with mail address %mail', ['%mail' => $guardian_mail]),

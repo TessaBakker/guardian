@@ -6,7 +6,7 @@
  */
 
 /**
- * Alter the Guardian mail metadata, that will be append to the body text.
+ * Alter the Guardian mail metadata, that will be appended to the body text.
  *
  * @param string[] $body
  *   Content of mail body.

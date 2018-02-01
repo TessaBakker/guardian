@@ -22,7 +22,7 @@ function guardian_help($route_name, RouteMatchInterface $route_match) {
     case 'help.page.guardian':
       $output = '';
       $output .= '<h3>' . t('About') . '</h3>';
-      $output .= '<p>' . t('This module requires that Guareded Users need to log in with <code>drush uli</code> or a password reset token url.') . '</p>';
+      $output .= '<p>' . t('This module requires that Guarded Users need to log in with <code>drush uli</code> or a password reset token url.') . '</p>';
       return $output;
   }
 
@@ -47,7 +47,6 @@ function guardian_cron() {
       $account->save();
     }
   }
-
 }
 
 /**
@@ -65,13 +64,14 @@ function guardian_mail($key, &$message, $params) {
 /**
  * Implements hook_ENTITY_TYPE_access().
  *
- * Only guarded accounts can do view, update or delete guarded accounts.
+ * Only guarded accounts can view, update or delete guarded accounts.
  * Uid 1 can only be viewed or updated by uid 1.
  */
 function guardian_user_access(EntityInterface $entity, $operation, AccountInterface $account) {
   /** @var \Drupal\guardian\GuardianManagerInterface $guardian */
   $guardian = \Drupal::service('guardian.manager');
 
+  /** @var \Drupal\user\UserInterface $entity */
   if (!$guardian->isGuarded($entity)) {
     return AccessResult::neutral();
   }
@@ -122,6 +122,7 @@ function guardian_user_presave(EntityInterface $entity) {
   /** @var \Drupal\guardian\GuardianManagerInterface $guardian */
   $guardian = \Drupal::service('guardian.manager');
 
+  /** @var \Drupal\user\UserInterface $entity */
   if ($guardian->isGuarded($entity)) {
     $guardian->setDefaultUserValues($entity);
   }

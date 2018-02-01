@@ -1,8 +1,19 @@
 services:
   guardian.manager:
-    class: '\Drupal\guardian\GuardianManager'
+    class: Drupal\guardian\GuardianManager
+    arguments:
+    - '@config.factory'
+    - '@entity_type.manager'
+    - '@plugin.manager.mail'
+    - '@request_stack'
+    - '@current_user'
+    - '@session_manager'
+    - '@datetime.time'
+    - '@email.validator'
+    - '@module_handler'
+
   guardian.event_subscriber:
-    class: '\Drupal\guardian\EventSubscriber\GuardianSubscriber'
+    class: Drupal\guardian\EventSubscriber\GuardianSubscriber
     arguments: ['@guardian.manager', '@current_user']
     tags:
       - {name: 'event_subscriber'}

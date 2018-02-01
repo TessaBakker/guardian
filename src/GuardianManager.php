@@ -2,11 +2,19 @@
 
 namespace Drupal\guardian;
 
+use Drupal\Component\Datetime\TimeInterface;
+use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Logger\LoggerChannelTrait;
+use Drupal\Core\Mail\MailManagerInterface;
 use Drupal\Core\Session\AccountInterface;
+use Drupal\Core\Session\SessionManagerInterface;
 use Drupal\Core\Site\Settings;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
 use Drupal\user\UserInterface;
+use Egulias\EmailValidator\EmailValidator;
+use Symfony\Component\HttpFoundation\RequestStack;
 
 /**
  * Class GuardianManager.
@@ -18,10 +26,107 @@ final class GuardianManager implements GuardianManagerInterface {
   use StringTranslationTrait, LoggerChannelTrait;
 
   /**
+   * The configuration object factory service.
+   *
+   * @var \Drupal\Core\Config\ConfigFactoryInterface
+   */
+  protected $configFactory;
+
+  /**
+   * The user storage.
+   *
+   * @var \Drupal\user\UserStorageInterface
+   */
+  protected $userStorage;
+
+  /**
+   * The mail manager service.
+   *
+   * @var \Drupal\Core\Mail\MailManagerInterface
+   */
+  protected $mailManager;
+
+  /**
+   * The request stack.
+   *
+   * @var \Symfony\Component\HttpFoundation\RequestStack
+   */
+  protected $requestStack;
+
+  /**
+   * The account object.
+   *
+   * @var \Drupal\Core\Session\AccountInterface
+   */
+  protected $currentUser;
+
+  /**
+   * The session manager.
+   *
+   * @var \Drupal\Core\Session\SessionManagerInterface
+   */
+  protected $sessionManager;
+
+  /**
+   * The time service.
+   *
+   * @var \Drupal\Component\Datetime\TimeInterface
+   */
+  protected $time;
+
+  /**
+   * The email validator.
+   *
+   * @var \Egulias\EmailValidator\EmailValidator
+   */
+  protected $emailValidator;
+
+  /**
+   * The module handler service.
+   *
+   * @var \Drupal\Core\Extension\ModuleHandlerInterface
+   */
+  protected $moduleHandler;
+
+  /**
+   * GuardianManager constructor.
+   *
+   * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory
+   *   The configuration object factory service.
+   * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entity_type_manager
+   *   The entity type manager service.
+   * @param \Drupal\Core\Mail\MailManagerInterface $mail_manager
+   *   The mail manager service.
+   * @param \Symfony\Component\HttpFoundation\RequestStack $request_stack
+   *   The request stack.
+   * @param \Drupal\Core\Session\AccountInterface $current_user
+   *   The account object.
+   * @param \Drupal\Core\Session\SessionManagerInterface $session_manager
+   *   The session manager.
+   * @param \Drupal\Component\Datetime\TimeInterface $time
+   *   The time service.
+   * @param \Egulias\EmailValidator\EmailValidator $email_validator
+   *   The email validator.
+   * @param \Drupal\Core\Extension\ModuleHandlerInterface $module_handler
+   *   The module handler service.
+   */
+  public function __construct(ConfigFactoryInterface $config_factory, EntityTypeManagerInterface $entity_type_manager, MailManagerInterface $mail_manager, RequestStack $request_stack, AccountInterface $current_user, SessionManagerInterface $session_manager, TimeInterface $time, EmailValidator $email_validator, ModuleHandlerInterface $module_handler) {
+    $this->configFactory = $config_factory;
+    $this->userStorage = $entity_type_manager->getStorage('user');
+    $this->mailManager = $mail_manager;
+    $this->requestStack = $request_stack;
+    $this->currentUser = $current_user;
+    $this->sessionManager = $session_manager;
+    $this->time = $time;
+    $this->emailValidator = $email_validator;
+    $this->moduleHandler = $module_handler;
+  }
+
+  /**
    * {@inheritdoc}
    */
   public function notifyModuleState($isEnabled) {
-    $site = \Drupal::config('system.site')->get('name');
+    $site = $this->configFactory->get('system.site')->get('name');
 
     if ($isEnabled) {
       $subject = $this->t('Guardian has been enabled for @site', [
@@ -44,11 +149,10 @@ final class GuardianManager implements GuardianManagerInterface {
     ];
 
     $guardian_mail = Settings::get('guardian_mail');
-    $user = \Drupal::entityTypeManager()->getStorage('user')->load(1);
+    /** @var \Drupal\user\UserInterface $user */
+    $user = $this->userStorage->load(1);
 
-    /** @var \Drupal\Core\Mail\MailManagerInterface $mailManager */
-    $mailManager = \Drupal::service('plugin.manager.mail');
-    $mailManager->mail('guardian', 'notification', $guardian_mail, $user->getPreferredLangcode(), $params, NULL, TRUE);
+    $this->mailManager->mail('guardian', 'notification', $guardian_mail, $user->getPreferredLangcode(), $params, NULL, TRUE);
   }
 
   /**
@@ -70,28 +174,27 @@ final class GuardianManager implements GuardianManagerInterface {
    */
   public function addMetadataToBody(array &$body) {
     $body[] = $this->t('Client IP: @ip', [
-      '@ip' => \Drupal::request()->getClientIp(),
+      '@ip' => $this->requestStack->getCurrentRequest()->getClientIp(),
     ]);
     $body[] = $this->t('Host name: @host', [
-      '@host' => \Drupal::request()->getHost(),
+      '@host' => $this->requestStack->getCurrentRequest()->getHost(),
     ]);
 
     if (PHP_SAPI === 'cli') {
       $body[] = $this->t('Terminal user: @user', ['@user' => $_SERVER['USER'] ?: $this->t('Unknown')]);
     }
 
-    \Drupal::moduleHandler()->alter('guardian_add_metadata_to_body', $body);
+    $this->moduleHandler->alter('guardian_add_metadata_to_body', $body);
   }
 
   /**
    * {@inheritdoc}
    */
   public function destroySession(AccountInterface $account) {
-    $current_user = \Drupal::currentUser();
 
-    \Drupal::service('session_manager')->delete($account->id());
+    $this->sessionManager->delete($account->id());
 
-    if ($account->id() == $current_user->id()) {
+    if ($account->id() == $this->currentUser->id()) {
       user_logout();
     }
   }
@@ -112,9 +215,7 @@ final class GuardianManager implements GuardianManagerInterface {
    */
   public function hasValidData(AccountInterface $account) {
     /** @var \Drupal\user\UserInterface $user */
-    $user = \Drupal::entityTypeManager()
-      ->getStorage('user')
-      ->load($account->id());
+    $user = $this->userStorage->load($account->id());
 
     if ($user && is_null($user->getPassword())) {
       if ($user->getEmail() == $user->getInitialEmail()) {
@@ -142,7 +243,7 @@ final class GuardianManager implements GuardianManagerInterface {
    */
   public function hasValidSession(AccountInterface $account) {
     $guardian_seconds = 3600 * Settings::get('guardian_hours', 2);
-    $timeout = \Drupal::time()->getRequestTime() - $guardian_seconds;
+    $timeout = $this->time->getRequestTime() - $guardian_seconds;
     return $account->getLastAccessedTime() > $timeout;
   }
 
@@ -173,15 +274,13 @@ final class GuardianManager implements GuardianManagerInterface {
     static $users = [];
 
     if (empty($users)) {
-      $mail_validator = \Drupal::service('email.validator');
-      $implementations = \Drupal::moduleHandler()
-        ->getImplementations('guardian_guarded_users');
+      $implementations = $this->moduleHandler->getImplementations('guardian_guarded_users');
 
       foreach ($implementations as $module) {
         $function = $module . '_guardian_guarded_users';
         $guarded_users = $function();
         foreach ($guarded_users as $uid => $mail) {
-          if (empty($mail) || !is_int($uid) || $uid < 2 || !$mail_validator->isValid($mail)) {
+          if (empty($mail) || !is_int($uid) || $uid < 2 || !$this->emailValidator->isValid($mail)) {
             unset($guarded_users[$uid]);
           }
         }
