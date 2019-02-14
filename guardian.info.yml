@@ -4,3 +4,5 @@ description: Requires users to log in with only password reset or drush uli.
 core: 8.x
 package: Security
 configure: guardian.settings
+dependencies:
+  - 'drupal:system(>=8.5)'

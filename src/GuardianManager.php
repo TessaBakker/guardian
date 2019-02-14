@@ -8,6 +8,7 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Logger\LoggerChannelTrait;
 use Drupal\Core\Mail\MailManagerInterface;
+use Drupal\Core\Messenger\MessengerTrait;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\Core\Session\SessionManagerInterface;
 use Drupal\Core\Site\Settings;
@@ -23,7 +24,7 @@ use Symfony\Component\HttpFoundation\RequestStack;
  */
 final class GuardianManager implements GuardianManagerInterface {
 
-  use StringTranslationTrait, LoggerChannelTrait;
+  use StringTranslationTrait, LoggerChannelTrait, MessengerTrait;
 
   /**
    * The configuration object factory service.
@@ -207,7 +208,7 @@ final class GuardianManager implements GuardianManagerInterface {
     $message = $this->formatPlural($hours,
       'Your last access was more than 1 hour ago, please login again.',
       'Your last access was more than @count hours ago, please login again.', ['@count' => $hours]);
-    drupal_set_message($message, 'warning', TRUE);
+    $this->messenger()->addWarning($message, TRUE);
   }
 
   /**
